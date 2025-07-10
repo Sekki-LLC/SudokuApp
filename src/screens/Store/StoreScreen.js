@@ -1,30 +1,33 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
+// File: src/screens/Store/StoreScreen.js
+
+import React, { useState } from 'react'
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
   Alert,
-  Dimensions 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/colors';
+  Dimensions
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
+import { COLORS } from '../../constants/colors'
+import { useTheme } from '../../contexts/ThemeContext'
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get('window')
 
-const StoreScreen = () => {
-  const [userCoins, setUserCoins] = useState(150); // Virtual currency
-  const [selectedTheme, setSelectedTheme] = useState('classic');
+export default function StoreScreen() {
+  const [userTokens, setUserTokens] = useState(150)
+  const [purchasedItems, setPurchasedItems] = useState([])
+  const { themeId: selectedTheme, setThemeId } = useTheme()
 
-  // Premium items data
   const premiumItems = [
     {
       id: 'unlimited_hints',
       title: 'Unlimited Hints',
-      description: 'Never get stuck again with unlimited hints',
-      price: '$2.99',
+      description: 'Never get stuck again',
+      tokenCost: 300,
       icon: 'bulb',
       popular: true
     },
@@ -32,7 +35,7 @@ const StoreScreen = () => {
       id: 'ad_free',
       title: 'Remove Ads',
       description: 'Enjoy uninterrupted gameplay',
-      price: '$1.99',
+      tokenCost: 200,
       icon: 'close-circle',
       popular: false
     },
@@ -40,308 +43,284 @@ const StoreScreen = () => {
       id: 'premium_themes',
       title: 'Premium Themes',
       description: 'Unlock 10+ beautiful themes',
-      price: '$0.99',
+      tokenCost: 100,
       icon: 'color-palette',
       popular: false
     },
     {
       id: 'power_ups',
       title: 'Power-Up Pack',
-      description: 'Auto-fill, reveal conflicts, smart hints',
-      price: '$3.99',
+      description: 'Auto-fill, smart hints',
+      tokenCost: 400,
       icon: 'flash',
       popular: true
     },
     {
       id: 'premium_bundle',
       title: 'Premium Bundle',
-      description: 'Everything included - Best Value!',
-      price: '$6.99',
+      description: 'Everything included – Best Value!',
+      tokenCost: 600,
       icon: 'star',
-      popular: true,
-      savings: 'Save 30%'
+      popular: true
     }
-  ];
+  ]
 
-  // Themes data
   const themes = [
-    { id: 'classic', name: 'Classic Purple', free: true },
-    { id: 'dark', name: 'Dark Mode', free: false },
-    { id: 'ocean', name: 'Ocean Blue', free: false },
-    { id: 'forest', name: 'Forest Green', free: false },
-    { id: 'sunset', name: 'Sunset Orange', free: false },
-    { id: 'cherry', name: 'Cherry Blossom', free: false },
+    { id: 'classic',  name: 'Classic Purple', free: true  },
+    { id: 'dark',     name: 'Dark Mode',      free: false },
+    { id: 'ocean',    name: 'Ocean Blue',     free: false },
+    { id: 'forest',   name: 'Forest Green',   free: false },
+    { id: 'sunset',   name: 'Sunset Orange',  free: false },
+    { id: 'cherry',   name: 'Cherry Blossom', free: false },
     { id: 'midnight', name: 'Midnight Black', free: false },
-    { id: 'pastel', name: 'Pastel Dreams', free: false }
-  ];
+    { id: 'pastel',   name: 'Pastel Dreams',  free: false }
+  ]
 
-  const handlePurchase = (item) => {
+  function handlePurchase(item) {
+    if (userTokens < item.tokenCost) {
+      return Alert.alert(
+        'Not Enough Tokens',
+        `Costs ${item.tokenCost}, you have ${userTokens}.`
+      )
+    }
     Alert.alert(
-      'Purchase Confirmation',
-      `Would you like to purchase ${item.title} for ${item.price}?${item.savings ? `\n\n${item.savings}` : ''}`,
+      'Confirm Purchase',
+      `Spend ${item.tokenCost} tokens on ${item.title}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Purchase', 
+        {
+          text: 'Yes',
           onPress: () => {
-            Alert.alert('Success!', `${item.title} has been added to your account!`);
-            // Add coins for purchase simulation
-            setUserCoins(prev => prev + 50);
+            setUserTokens(prev => prev - item.tokenCost)
+            setPurchasedItems(prev => [...prev, item.id])
           }
         }
       ]
-    );
-  };
+    )
+  }
 
-  const handleThemeSelect = (themeId) => {
-    if (themes.find(t => t.id === themeId)?.free) {
-      setSelectedTheme(themeId);
-      Alert.alert('Theme Applied', 'Your new theme has been applied!');
-    } else {
-      Alert.alert('Premium Theme', 'Purchase Premium Themes to unlock this theme!');
-    }
-  };
+  function handleRestorePurchases() {
+    Alert.alert('Restore Purchases', 'Your previous unlocks have been restored.')
+    setPurchasedItems(prev => [...prev])
+  }
 
-  const handleRestorePurchases = () => {
-    Alert.alert('Restore Purchases', 'Checking for previous purchases...', [
-      { text: 'OK', onPress: () => Alert.alert('Complete', 'No previous purchases found.') }
-    ]);
-  };
+  function handleAddMore() {
+    Alert.alert('Add More Tokens', 'Navigate to token purchase screen.')
+    // TODO: integrate your purchase flow
+  }
 
-  const renderPremiumItem = (item) => (
-    <TouchableOpacity 
-      key={item.id} 
-      style={[styles.premiumCard, item.popular && styles.popularCard]}
-      onPress={() => handlePurchase(item)}
-    >
-      {item.popular && (
-        <View style={styles.popularBadge}>
-          <Text style={styles.popularText}>POPULAR</Text>
+  function renderPremium(item) {
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={[styles.card, item.popular && styles.popularCard]}
+        onPress={() => handlePurchase(item)}
+      >
+        {item.popular && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>POPULAR</Text>
+          </View>
+        )}
+        <View style={styles.row}>
+          <Ionicons name={item.icon} size={24} color={COLORS.interactive} />
+          <View style={styles.info}>
+            <Text style={styles.title}>{item.title}</Text>
+            <Text style={styles.desc}>{item.description}</Text>
+          </View>
+          <View style={styles.cost}>
+            <Text style={styles.costText}>{item.tokenCost}</Text>
+            <Ionicons name="diamond" size={16} color="#fd6b02" />
+          </View>
         </View>
-      )}
-      {item.savings && (
-        <View style={styles.savingsBadge}>
-          <Text style={styles.savingsText}>{item.savings}</Text>
-        </View>
-      )}
-      <View style={styles.premiumHeader}>
-        <Ionicons name={item.icon} size={32} color={COLORS.interactive} />
-        <View style={styles.premiumInfo}>
-          <Text style={styles.premiumTitle}>{item.title}</Text>
-          <Text style={styles.premiumDescription}>{item.description}</Text>
-        </View>
-        <Text style={styles.premiumPrice}>{item.price}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    )
+  }
 
-  const renderTheme = (theme) => (
-    <TouchableOpacity 
-      key={theme.id}
-      style={[
-        styles.themeCard,
-        selectedTheme === theme.id && styles.selectedTheme,
-        !theme.free && styles.premiumTheme
-      ]}
-      onPress={() => handleThemeSelect(theme.id)}
-    >
-      <Text style={styles.themeName}>{theme.name}</Text>
-      {!theme.free && (
-        <Ionicons name="lock-closed" size={16} color={COLORS.textSecondary} />
-      )}
-      {selectedTheme === theme.id && (
-        <Ionicons name="checkmark-circle" size={20} color={COLORS.interactive} />
-      )}
-    </TouchableOpacity>
-  );
+  function renderTheme(theme) {
+    const unlocked = theme.free || purchasedItems.includes('premium_themes')
+    return (
+      <TouchableOpacity
+        key={theme.id}
+        style={[
+          styles.themeCard,
+          !unlocked && styles.lockedTheme,
+          selectedTheme === theme.id && styles.selectedTheme
+        ]}
+        onPress={() =>
+          unlocked
+            ? setThemeId(theme.id)
+            : Alert.alert('Premium Theme', 'Purchase Premium Themes to unlock.')
+        }
+      >
+        <Text style={styles.themeName}>{theme.name}</Text>
+        {!theme.free && !unlocked && (
+          <Ionicons name="lock-closed" size={16} color={COLORS.textSecondary} />
+        )}
+        {selectedTheme === theme.id && (
+          <Ionicons name="checkmark-circle" size={20} color={COLORS.interactive} />
+        )}
+      </TouchableOpacity>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Store</Text>
-          <View style={styles.coinsContainer}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.headerRow}>
+          <Text style={styles.header}>Store</Text>
+          <View style={styles.tokensRow}>
             <Ionicons name="diamond" size={20} color="#fd6b02" />
-            <Text style={styles.coinsText}>{userCoins}</Text>
+            <Text style={styles.tokenCount}>{userTokens}</Text>
+            <TouchableOpacity onPress={handleAddMore} style={styles.addMoreBtn}>
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.interactive} />
+              <Text style={styles.addMoreText}>Add More</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Store Description */}
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.descriptionText}>
-            Enhance your Sudoku experience with premium features and beautiful themes!
-          </Text>
-        </View>
+        {premiumItems.map(renderPremium)}
 
-        {/* Premium Features */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Premium Features</Text>
-          <Text style={styles.sectionSubtitle}>Unlock the full potential of your Sudoku experience</Text>
-          {premiumItems.map(renderPremiumItem)}
-        </View>
+        <TouchableOpacity style={styles.restoreBtn} onPress={handleRestorePurchases}>
+          <Ionicons name="refresh" size={20} color={COLORS.interactive} />
+          <Text style={styles.restoreText}>Restore Purchases</Text>
+        </TouchableOpacity>
 
-        {/* Themes */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Themes</Text>
-          <Text style={styles.sectionSubtitle}>Personalize your game with beautiful themes</Text>
-          <View style={styles.themesGrid}>
-            {themes.map(renderTheme)}
-          </View>
-        </View>
-
-        {/* Restore Purchases */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
-            <Ionicons name="refresh" size={20} color={COLORS.interactive} />
-            <Text style={styles.restoreButtonText}>Restore Purchases</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            All purchases are one-time only and will be restored across devices when you sign in.
-          </Text>
+          <View style={styles.themesGrid}>{themes.map(renderTheme)}</View>
         </View>
       </ScrollView>
     </SafeAreaView>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background
   },
-  header: {
+  scrollView: {
+    flex: 1
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 20
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.cellBorder,
+    marginBottom: 20
   },
-  headerTitle: {
-    fontSize: 28,
+  header: {
+    fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary
   },
-  coinsContainer: {
+  tokensRow: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  tokenCount: {
+    marginLeft: 5,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary
+  },
+  addMoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.selectedCell,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    marginLeft: 12
   },
-  coinsText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginLeft: 5,
-  },
-  descriptionContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: COLORS.selectedCell,
-    marginHorizontal: 20,
-    marginTop: 15,
-    borderRadius: 10,
-  },
-  descriptionText: {
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  section: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 5,
-  },
-  sectionSubtitle: {
+  addMoreText: {
+    marginLeft: 4,
     fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 15,
+    fontWeight: '600',
+    color: COLORS.interactive
   },
-  premiumCard: {
+  card: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 15,
-    marginBottom: 10,
-    elevation: 2,
+    marginBottom: 15,
     shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    position: 'relative',
+    shadowRadius: 2,
+    elevation: 2
   },
   popularCard: {
-    borderWidth: 2,
-    borderColor: '#fd6b02',
+    borderWidth: 1,
+    borderColor: COLORS.interactive
   },
-  popularBadge: {
+  badge: {
     position: 'absolute',
     top: -8,
-    right: 15,
-    backgroundColor: '#fd6b02',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    right: -8,
+    backgroundColor: COLORS.interactive,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 5
   },
-  popularText: {
-    fontSize: 10,
-    fontWeight: 'bold',
+  badgeText: {
     color: COLORS.white,
-  },
-  savingsBadge: {
-    position: 'absolute',
-    top: -8,
-    left: 15,
-    backgroundColor: '#28a745',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  savingsText: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: COLORS.white,
+    fontWeight: '600'
   },
-  premiumHeader: {
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center'
   },
-  premiumInfo: {
+  info: {
     flex: 1,
-    marginLeft: 15,
+    marginLeft: 15
   },
-  premiumTitle: {
+  title: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary
   },
-  premiumDescription: {
+  desc: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: 2
   },
-  premiumPrice: {
-    fontSize: 18,
+  cost: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  costText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.interactive,
+    marginRight: 4
+  },
+  restoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10
+  },
+  restoreText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.interactive
+  },
+  section: {
+    marginTop: 20
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 10
   },
   themesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
   themeCard: {
     width: (width - 60) / 2,
@@ -349,56 +328,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 15,
     marginBottom: 10,
-    elevation: 2,
     shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
+    elevation: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
   selectedTheme: {
     borderWidth: 2,
-    borderColor: COLORS.interactive,
+    borderColor: COLORS.interactive
   },
-  premiumTheme: {
-    opacity: 0.7,
+  lockedTheme: {
+    opacity: 0.5
   },
   themeName: {
     fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
-    flex: 1,
-  },
-  restoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: COLORS.cellBorder,
-  },
-  restoreButtonText: {
-    fontSize: 16,
-    color: COLORS.interactive,
-    marginLeft: 8,
-    fontWeight: '600',
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    marginBottom: 20,
-  },
-  footerText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
-
-export default StoreScreen;
-
+    flex: 1
+  }
+})

@@ -1,59 +1,49 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useNavigationContainerRef } from '@react-navigation/native';
+// File: src/App.js
 
-// Import your MainTabNavigator and GameScreen
-import MainTabNavigator from './navigation/MainTabNavigator';
-import GameScreen from './screens/Game/GameScreen';
+import React from 'react'
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 
-// Import your contexts
-import { GameSettingsProvider } from './contexts/GameSettingsContext';
+// Contexts
+import { GameSettingsProvider } from './contexts/GameSettingsContext'
+import { ThemeProvider }       from './contexts/ThemeContext'
 
-const Stack = createNativeStackNavigator();
+// Navigation
+import MainTabNavigator from './navigation/MainTabNavigator'
+import GameScreen       from './screens/Game/GameScreen'
+
+// Error Boundary
+import ErrorBoundary from './components/ErrorBoundary'
+
+const Stack = createNativeStackNavigator()
 
 export default function App() {
-  const navigationRef = useNavigationContainerRef();
-  const routeNameRef = React.useRef();
+  const navigationRef = useNavigationContainerRef()
+  const routeNameRef  = React.useRef()
 
   return (
     <GameSettingsProvider>
-      <SafeAreaProvider>
-        <NavigationContainer
-          ref={navigationRef}
-          onReady={() => {
-            routeNameRef.current = navigationRef.getCurrentRoute().name;
-          }}
-          onStateChange={async () => {
-            const previousRouteName = routeNameRef.current;
-            const currentRouteName = navigationRef.getCurrentRoute().name;
-
-            if (previousRouteName !== currentRouteName) {
-              routeNameRef.current = currentRouteName;
-            }
-          }}
-        >
-          <Stack.Navigator 
-            screenOptions={{ headerShown: false }}
-            initialRouteName="MainTabs"
-          >
-            <Stack.Screen 
-              name="MainTabs" 
-              component={MainTabNavigator} 
-            />
-            <Stack.Screen 
-              name="Game" 
-              component={GameScreen}
-              options={{ 
-                headerShown: false,
-                gestureEnabled: true 
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <ErrorBoundary>
+            <NavigationContainer
+              ref={navigationRef}
+              onReady={() => { routeNameRef.current = navigationRef.getCurrentRoute().name }}
+              onStateChange={() => {
+                const prev = routeNameRef.current
+                const curr = navigationRef.getCurrentRoute().name
+                if (prev !== curr) routeNameRef.current = curr
               }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaProvider>
+            >
+              <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+                <Stack.Screen name="Game"     component={GameScreen}     options={{ gestureEnabled: true }} />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </ErrorBoundary>
+        </SafeAreaProvider>
+      </ThemeProvider>
     </GameSettingsProvider>
-  );
+  )
 }
-

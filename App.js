@@ -1,4 +1,4 @@
-// SudokuApp/App.js
-import App from './src/App'; // Import the App component from your src folder
+// File: App.js  (in your project root)
+import App from './src/App.js'
 
-export default App; // Export it as the default
+export default App
