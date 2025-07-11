@@ -8,18 +8,14 @@ ENV['RCT_NEW_ARCH_ENABLED'] = '0' if podfile_properties['newArchEnabled'] == 'fa
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 
 platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
-install! 'cocoapods',
-  deterministic_uuids: false
+install! 'cocoapods', deterministic_uuids: false
 
 prepare_react_native_project!
 
 target 'SudokuApp' do
   use_expo_modules!
 
-  # Explicitly pin ExpoModulesCore to the root folder so CocoaPods
-  # doesn’t also pick up the ios/ subfolder version.
-  pod 'ExpoModulesCore', path: '../node_modules/expo-modules-core'
-
+  # Generate the `config` hash for native modules & React-Native
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"]
   else
@@ -32,7 +28,6 @@ target 'SudokuApp' do
       'ios'
     ]
   end
-
   config = use_native_modules!(config_command)
 
   use_frameworks! linkage: podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
@@ -46,6 +41,7 @@ target 'SudokuApp' do
   )
 
   post_install do |installer|
+    # Standard React-Native post-install (generates projects, applies patches, etc.)
     react_native_post_install(
       installer,
       config[:reactNativePath],
@@ -62,12 +58,16 @@ target 'SudokuApp' do
       end
     end
 
-    # Workaround for EXAdsAdMob missing header
+    # Workaround for expo-ads-admob: make sure it can find ExpoModulesCore headers
     installer.pods_project.targets.each do |target|
       if target.name == 'EXAdsAdMob'
         target.build_configurations.each do |cfg|
+          # inherit default search paths
           cfg.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+          # add the CocoaPods sandbox ExpoModulesCore public headers
           cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore"'
+          # and the subfolder where EXViewManager.h actually lives
+          cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore/ExpoModulesCore"'
         end
       end
     end
