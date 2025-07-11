@@ -16,7 +16,6 @@ prepare_react_native_project!
 target 'SudokuApp' do
   use_expo_modules!
 
-
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"]
   else
@@ -59,4 +58,30 @@ target 'SudokuApp' do
       end
     end
   end
+
+  # ——— BEGIN workaround for expo-ads-admob header search path ———
+  installer = Pod::Installer.new(nil, nil) rescue nil
+  installer = nil # avoid messing with real installer instance
+  installer = nil # placeholder
+  installer = nil # placeholder
+  installer = nil # placeholder
+  installer = nil # placeholder
+  Pod::Installer.class_eval do
+    def self.add_ex_ads_admob_header_search
+      pods_project.targets.each do |target|
+        if target.name == 'EXAdsAdMob'
+          target.build_configurations.each do |config|
+            config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+            config.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/../node_modules/expo-modules-core/ios"'
+          end
+        end
+      end
+    end
+  end
+  # Call it after original post_install in this Podfile
+  post_install do |installer|
+    Pod::Installer.add_ex_ads_admob_header_search
+  end
+  # ——— END workaround ———
+
 end
