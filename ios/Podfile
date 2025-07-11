@@ -9,7 +9,7 @@ ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWO
 
 platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 install! 'cocoapods',
-  :deterministic_uuids => false
+  deterministic_uuids: false
 
 prepare_react_native_project!
 
@@ -31,57 +31,42 @@ target 'SudokuApp' do
 
   config = use_native_modules!(config_command)
 
-  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
-  use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
+  use_frameworks! linkage: podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  use_frameworks! linkage: ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
 
   use_react_native!(
-    :path => config[:reactNativePath],
-    :hermes_enabled => podfile_properties['expo.jsEngine'].nil? || podfile_properties['expo.jsEngine'] == 'hermes',
-    :app_path => "#{Pod::Config.instance.installation_root}/..",
-    :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
+    path: config[:reactNativePath],
+    hermes_enabled: podfile_properties['expo.jsEngine'].nil? || podfile_properties['expo.jsEngine'] == 'hermes',
+    app_path: "#{Pod::Config.instance.installation_root}/..",
+    privacy_file_aggregation_enabled: podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false'
   )
 
   post_install do |installer|
     react_native_post_install(
       installer,
       config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
+      mac_catalyst_enabled: false,
+      ccache_enabled: podfile_properties['apple.ccacheEnabled'] == 'true'
     )
 
     # Disable code signing on resource bundles (Xcode 14+)
-    installer.target_installation_results.pod_target_installation_results.each do |pod_name, target_installation_result|
-      target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
-        resource_bundle_target.build_configurations.each do |config|
-          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+    installer.target_installation_results.pod_target_installation_results.each do |_, result|
+      result.resource_bundle_targets.each do |bundle_target|
+        bundle_target.build_configurations.each do |cfg|
+          cfg.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
         end
       end
     end
-  end
 
-  # ——— BEGIN workaround for expo-ads-admob header search path ———
-  installer = Pod::Installer.new(nil, nil) rescue nil
-  installer = nil # avoid messing with real installer instance
-  installer = nil # placeholder
-  installer = nil # placeholder
-  installer = nil # placeholder
-  installer = nil # placeholder
-  Pod::Installer.class_eval do
-    def self.add_ex_ads_admob_header_search
-      pods_project.targets.each do |target|
-        if target.name == 'EXAdsAdMob'
-          target.build_configurations.each do |config|
-            config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
-            config.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/../node_modules/expo-modules-core/ios"'
-          end
+    # ——— BEGIN workaround for expo-ads-admob header search path ———
+    installer.pods_project.targets.each do |target|
+      if target.name == 'EXAdsAdMob'
+        target.build_configurations.each do |cfg|
+          cfg.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+          cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/../node_modules/expo-modules-core/ios"'
         end
       end
     end
+    # ——— END workaround ———
   end
-  # Call it after original post_install in this Podfile
-  post_install do |installer|
-    Pod::Installer.add_ex_ads_admob_header_search
-  end
-  # ——— END workaround ———
-
 end
