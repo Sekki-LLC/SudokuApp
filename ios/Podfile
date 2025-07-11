@@ -16,6 +16,10 @@ prepare_react_native_project!
 target 'SudokuApp' do
   use_expo_modules!
 
+  # Explicitly pin ExpoModulesCore to the root folder so CocoaPods
+  # doesn’t also pick up the ios/ subfolder version.
+  pod 'ExpoModulesCore', path: '../node_modules/expo-modules-core'
+
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"]
   else
@@ -58,15 +62,14 @@ target 'SudokuApp' do
       end
     end
 
-    # ——— BEGIN workaround for expo-ads-admob header search path ———
+    # Workaround for EXAdsAdMob missing header
     installer.pods_project.targets.each do |target|
       if target.name == 'EXAdsAdMob'
         target.build_configurations.each do |cfg|
           cfg.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
-          cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/../node_modules/expo-modules-core/ios"'
+          cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore"'
         end
       end
     end
-    # ——— END workaround ———
   end
 end
