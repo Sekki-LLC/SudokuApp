@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useUser } from '../../contexts/UserContext';
-// import AdBanner from '../../components/AdBanner';
+import AdBanner from '../../components/AdBanner';
 import * as InAppPurchases from 'expo-in-app-purchases';
 
 const { width } = Dimensions.get('window');

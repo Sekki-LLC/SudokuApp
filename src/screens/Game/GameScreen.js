@@ -11,7 +11,7 @@ import {
   Dimensions,
   TouchableOpacity
 } from 'react-native'
-// import AdBanner from '../../components/AdBanner';
+import AdBanner from '../../components/AdBanner';
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
