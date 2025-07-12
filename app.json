@@ -24,6 +24,7 @@
     },
     "ios": {
       "bundleIdentifier": "io.sekki.sudoku",
+      "buildNumber": "2",
       "infoPlist": {
         "GADApplicationIdentifier": "ca-app-pub-7765897544369826~3669005398",
         "CFBundleDisplayName": "GridGenius Sudoku"
