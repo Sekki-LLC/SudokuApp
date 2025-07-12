@@ -3,21 +3,48 @@
     "name": "GridGenius Sudoku",
     "slug": "sudokuapp",
     "version": "1.2.0",
-    "sdkVersion": "53.0.0",           
+    "sdkVersion": "53.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "plugins": [],
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-ads-admob",
+        {
+          "iosAppId": "ca-app-pub-7765897544369826~3669005398",
+          "androidAppId": "ca-app-pub-XXXXXXXXXXXXXXX~YYYYYYYYYY"
+        }
+      ]
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "io.sekki.sudoku"
+      "bundleIdentifier": "io.sekki.sudoku",
+      "infoPlist": {
+        "GADApplicationIdentifier": "ca-app-pub-7765897544369826~3669005398",
+        "CFBundleDisplayName": "GridGenius Sudoku"
+      }
     },
     "android": {
-      "package": "io.sekki.sudoku"
+      "package": "io.sekki.sudoku",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "manifest": {
+        "application": {
+          "meta-data": [
+            {
+              "android:name": "com.google.android.gms.ads.APPLICATION_ID",
+              "android:value": "ca-app-pub-XXXXXXXXXXXXXXX~YYYYYYYYYY"
+            }
+          ]
+        }
+      }
     }
   }
 }
