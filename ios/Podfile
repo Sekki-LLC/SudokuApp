@@ -1,39 +1,28 @@
-platform :ios, '12.4'
+platform :ios, '15.1'
 
-# Use the correct React Native Pods helper
+# Bring in RN’s Pod helper (defines both use_react_native! and use_native_modules!)
 require_relative '../node_modules/react-native/scripts/react_native_pods'
 
-# If you're on RN ≥ 0.70+, the community CLI native_modules helper has moved:
-# use_native_modules! is already defined in react_native_pods, so no extra require here.
-
 target 'SudokuApp' do
+  # Autolink all native modules
   config = use_native_modules!
 
-  # Uncomment this line if you need to support Fabric or new Architecture
-  # use_react_native!(fabric_enabled: false, hermes_enabled: true)
-
-  # Explicitly add EXAdsAdMob so CocoaPods won't prune it
-  pod 'EXAdsAdMob', :path => '../node_modules/expo-ads-admob'
-
-  # Other Expo modules you’re using can go here too, e.g.:
-  # pod 'ExpoModulesCore', :path => '../node_modules/expo-modules-core'
-
-  use_react_native!({
-    :path => config[:reactNativePath],
-    # to disable Flipper, set this to false
-    :flipper_configuration => FlipperConfiguration.disabled,
-  })
+  # Point to your JS code
+  use_react_native!(
+    :path => config[:reactNativePath]
+  )
 
   post_install do |installer|
-    react_native_post_install(installer, config[:reactNativePath])
+    # Standard RN post-install step
+    react_native_post_install(installer, mac_catalyst_enabled: false)
 
-    # Disable code signing on resource bundles (Xcode 14+)
+    # Fix EXAdsAdMob header paths so it finds ExpoModulesCore
     installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |cfg|
-        if target.name == 'EXAdsAdMob'
+      if target.name == 'EXAdsAdMob'
+        target.build_configurations.each do |cfg|
           cfg.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
-          cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore"'
-          cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore/ExpoModulesCore"'
+          cfg.build_settings['HEADER_SEARCH_PATHS'] << "\"${PODS_ROOT}/Headers/Public/ExpoModulesCore\""
+          cfg.build_settings['HEADER_SEARCH_PATHS'] << "\"${PODS_ROOT}/Headers/Public/ExpoModulesCore/ExpoModulesCore\""
         end
       end
     end
