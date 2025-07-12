@@ -11,7 +11,7 @@ import {
   Dimensions,
   TouchableOpacity
 } from 'react-native'
-// import AdBanner from '../../components/AdBanner';
+import AdBanner from '../../components/AdBanner';
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -358,7 +358,7 @@ export default function GameScreen({ route, navigation }) {
         color={colors.accent}
       />
             {/* Ad Banner */}
-//       <AdBanner adUnitID={colors.adUnitID /* replace with your real unit in production */} />
+      <AdBanner adUnitID={colors.adUnitID /* replace with your real unit in production */} />
 
     </View>
   )
