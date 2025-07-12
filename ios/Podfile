@@ -1,42 +1,36 @@
-platform :ios, '11.0'
+platform :ios, '12.4'
 
+# Use the correct React Native Pods helper
 require_relative '../node_modules/react-native/scripts/react_native_pods'
-require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
+
+# If you're on RN ≥ 0.70+, the community CLI native_modules helper has moved:
+# use_native_modules! is already defined in react_native_pods, so no extra require here.
 
 target 'SudokuApp' do
   config = use_native_modules!
 
-  use_react_native!(
-    :path => config[:reactNativePath],
-    # Enable Hermes if you want: set to true
-    :hermes_enabled => false
-  )
+  # Uncomment this line if you need to support Fabric or new Architecture
+  # use_react_native!(fabric_enabled: false, hermes_enabled: true)
 
-  # Add any other Expo or RN pods here:
+  # Explicitly add EXAdsAdMob so CocoaPods won't prune it
   pod 'EXAdsAdMob', :path => '../node_modules/expo-ads-admob'
 
-  target 'SudokuAppTests' do
-    inherit! :complete
-    # Pods for testing
-  end
+  # Other Expo modules you’re using can go here too, e.g.:
+  # pod 'ExpoModulesCore', :path => '../node_modules/expo-modules-core'
 
-  # Enables Flipper.
-  #
-  # Note that if you have use_frameworks! enabled, Flipper will not work and
-  # you should disable these next few lines.
-  use_flipper!()
+  use_react_native!({
+    :path => config[:reactNativePath],
+    # to disable Flipper, set this to false
+    :flipper_configuration => FlipperConfiguration.disabled,
+  })
 
   post_install do |installer|
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      mac_catalyst_enabled: false
-    )
+    react_native_post_install(installer, config[:reactNativePath])
 
-    # Workaround for EXAdsAdMob missing ExpoModulesCore headers
+    # Disable code signing on resource bundles (Xcode 14+)
     installer.pods_project.targets.each do |target|
-      if target.name == 'EXAdsAdMob'
-        target.build_configurations.each do |cfg|
+      target.build_configurations.each do |cfg|
+        if target.name == 'EXAdsAdMob'
           cfg.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
           cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore"'
           cfg.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ExpoModulesCore/ExpoModulesCore"'
