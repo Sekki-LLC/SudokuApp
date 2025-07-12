@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "GridGenius Sudoku",
-    "slug": "grid-genius-sudoku",
+    "slug": "SudokuApp",
     "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,7 +23,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "io.Sekki.SudokuApp",
+      "bundleIdentifier": "io.sekki.sudoku",
       "infoPlist": {
         "CFBundleDisplayName": "GridGenius Sudoku",
         "GADApplicationIdentifier": "ca-app-pub-7765897544369826~3669005398"
