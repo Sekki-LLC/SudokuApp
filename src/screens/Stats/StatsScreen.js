@@ -1,234 +1,289 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { loadAllGames } from '../../services/GameStorageService';
-import { COLORS } from '../../constants/colors';
+// File: src/screens/Stats/StatsScreen.js
 
-const StatsScreen = () => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+import React, { useState, useCallback } from 'react'
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator
+} from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { loadAllGames } from '../../services/GameStorageService'
+import { format } from 'date-fns'
+import { useTheme } from '../../contexts/ThemeContext'
 
-  const formatTime = (totalSeconds) => {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
+export default function StatsScreen() {
+  const { colors } = useTheme()
+  const [stats, setStats]     = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  // Helper to format seconds -> MM:SS
+  const formatTime = totalSeconds => {
+    const m = Math.floor(totalSeconds / 60)
+    const s = totalSeconds % 60
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`
+  }
+
+  // Your existing calculation, extracted so it can be invoked inside an inner async
   const calculateStats = useCallback(async () => {
-    setLoading(true);
-    const allGames = await loadAllGames();
+    const allGames = await loadAllGames()
 
-    let totalGamesPlayed = 0;
-    let gamesWon = 0;
-    let gamesAbandoned = 0;
-    let totalTimePlayed = 0;
-    let totalHintsUsed = 0;
-    const winsByDifficulty = {};
-    const avgTimeByDifficulty = {};
-    const bestTimeByDifficulty = {};
+    // Initialize counters
+    let totalGamesPlayed = 0
+    let gamesWon         = 0
+    let gamesAbandoned   = 0
+    let totalTimePlayed  = 0
+    let totalHintsUsed   = 0
+    const winsByDifficulty     = {}
+    const avgTimeByDifficulty  = {}
+    const bestTimeByDifficulty = {}
 
-    const allDifficultyNames = Array.from(new Set(allGames.map(game => game.selectedDifficulty?.name).filter(Boolean)));
-    const defaultDifficultyNames = ['Very Easy', 'Easy', 'Medium', 'Hard', 'Very Hard'];
-    const difficultiesToProcess = Array.from(new Set([...defaultDifficultyNames, ...allDifficultyNames]));
+    // Determine difficulty buckets
+    const defaultDiffs = ['Very Easy', 'Easy', 'Medium', 'Hard', 'Very Hard']
+    const extraDiffs   = Array.from(
+      new Set(
+        allGames.map(g => g.selectedDifficulty?.name).filter(Boolean)
+      )
+    )
+    const diffs = Array.from(new Set([...defaultDiffs, ...extraDiffs]))
 
-    difficultiesToProcess.forEach(diff => {
-      winsByDifficulty[diff] = 0;
-      avgTimeByDifficulty[diff] = { total: 0, count: 0 };
-      bestTimeByDifficulty[diff] = Infinity;
-    });
+    // Initialize per-difficulty stats
+    diffs.forEach(d => {
+      winsByDifficulty[d]     = 0
+      avgTimeByDifficulty[d]  = { total: 0, count: 0 }
+      bestTimeByDifficulty[d] = Infinity
+    })
 
+    // Accumulate
     allGames.forEach(game => {
-      const isWon = game.isWon === true;
-      const isAbandoned = game.isAbandoned === true;
-      const timeElapsed = game.timeElapsed || 0;
-      const hintsUsed = game.hintsRemaining !== undefined ? (3 - game.hintsRemaining) : 0;
+      totalGamesPlayed++
+      const t = game.timeElapsed || 0
+      const hintsUsed = game.hintsRemaining != null
+        ? 3 - game.hintsRemaining
+        : 0
 
-      totalGamesPlayed++;
-      totalTimePlayed += timeElapsed;
+      totalTimePlayed += t
+      totalHintsUsed   += hintsUsed
 
-      if (isWon) {
-        gamesWon++;
-        const diffName = game.selectedDifficulty?.name || 'Unknown';
-        if (winsByDifficulty[diffName] !== undefined) {
-          winsByDifficulty[diffName]++;
-        }
-
-        if (avgTimeByDifficulty[diffName]) {
-          avgTimeByDifficulty[diffName].total += timeElapsed;
-          avgTimeByDifficulty[diffName].count++;
-        }
-
-        if (timeElapsed < bestTimeByDifficulty[diffName]) {
-          bestTimeByDifficulty[diffName] = timeElapsed;
-        }
-      } else if (isAbandoned) {
-        gamesAbandoned++;
+      if (game.isWon) {
+        gamesWon++
+        const d = game.selectedDifficulty?.name || 'Unknown'
+        winsByDifficulty[d]++
+        avgTimeByDifficulty[d].total += t
+        avgTimeByDifficulty[d].count++
+        if (t < bestTimeByDifficulty[d]) bestTimeByDifficulty[d] = t
+      } else if (game.isAbandoned) {
+        gamesAbandoned++
       }
-      totalHintsUsed += hintsUsed;
-    });
+    })
 
-    const finalAvgTimeByDifficulty = {};
-    const finalBestTimeByDifficulty = {};
+    // Compute averages & best times
+    const finalAvg  = {}
+    const finalBest = {}
+    diffs.forEach(d => {
+      finalAvg[d]  = avgTimeByDifficulty[d].count
+        ? formatTime(
+            Math.round(avgTimeByDifficulty[d].total / avgTimeByDifficulty[d].count)
+          )
+        : 'N/A'
+      finalBest[d] = bestTimeByDifficulty[d] < Infinity
+        ? formatTime(bestTimeByDifficulty[d])
+        : 'N/A'
+    })
 
-    difficultiesToProcess.forEach(diff => {
-      if (avgTimeByDifficulty[diff].count > 0) {
-        finalAvgTimeByDifficulty[diff] = formatTime(Math.round(avgTimeByDifficulty[diff].total / avgTimeByDifficulty[diff].count));
-      } else {
-        finalAvgTimeByDifficulty[diff] = 'N/A';
-      }
-      finalBestTimeByDifficulty[diff] = bestTimeByDifficulty[diff] === Infinity ? 'N/A' : formatTime(bestTimeByDifficulty[diff]);
-    });
-
+    // Update state
     setStats({
       totalGamesPlayed,
       gamesWon,
       gamesAbandoned,
-      winRate: totalGamesPlayed > 0 ? ((gamesWon / totalGamesPlayed) * 100).toFixed(1) : 0,
+      winRate: totalGamesPlayed
+        ? ((gamesWon / totalGamesPlayed) * 100).toFixed(1)
+        : '0.0',
       totalTimePlayed: formatTime(totalTimePlayed),
       totalHintsUsed,
       winsByDifficulty,
-      avgTimeByDifficulty: finalAvgTimeByDifficulty,
-      bestTimeByDifficulty: finalBestTimeByDifficulty,
-      difficultiesToProcess,
-    });
-    setLoading(false);
-  }, []);
+      avgTimeByDifficulty: finalAvg,
+      bestTimeByDifficulty: finalBest,
+      difficulties: diffs
+    })
+  }, [])
 
+  // Wrap the async call in a sync callback for useFocusEffect
   useFocusEffect(
     useCallback(() => {
-      calculateStats();
-      return () => {};
+      let isActive = true
+
+      setLoading(true)
+      // Inner async runner
+      const run = async () => {
+        await calculateStats()
+        if (isActive) setLoading(false)
+      }
+
+      run()
+
+      // Cleanup toggles `isActive` to cancel any pending setState
+      return () => { isActive = false }
     }, [calculateStats])
-  );
+  )
 
   if (loading || !stats) {
     return (
-      <SafeAreaView style={styles.safeAreaContainer}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.interactive} />
-          <Text style={styles.loadingText}>Calculating stats...</Text>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Calculating stats...
+          </Text>
         </View>
       </SafeAreaView>
-    );
+    )
   }
 
   return (
-    <SafeAreaView style={styles.safeAreaContainer}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.header}>Your Sudoku Stats</Text>
+        <Text style={[styles.header, { color: colors.text }]}>
+          Your Sudoku Stats
+        </Text>
 
-        <View style={styles.statCard}>
-          <Text style={styles.cardTitle}>Overall Performance</Text>
-          <Text style={styles.statText}>Games Played: <Text style={styles.statValue}>{stats.totalGamesPlayed}</Text></Text>
-          <Text style={styles.statText}>Games Won: <Text style={styles.statValue}>{stats.gamesWon}</Text></Text>
-          <Text style={styles.statText}>Games Abandoned: <Text style={styles.statValue}>{stats.gamesAbandoned}</Text></Text>
-          <Text style={styles.statText}>Win Rate: <Text style={styles.statValue}>{stats.winRate}%</Text></Text>
-          <Text style={styles.statText}>Total Time Played: <Text style={styles.statValue}>{stats.totalTimePlayed}</Text></Text>
-          <Text style={styles.statText}>Total Hints Used: <Text style={styles.statValue}>{stats.totalHintsUsed}</Text></Text>
+        {/* Overall Performance */}
+        <View style={[styles.card, { backgroundColor: colors.white }]}>
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text, borderBottomColor: colors.accent }
+            ]}
+          >
+            Overall Performance
+          </Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            Games Played: <Text style={[styles.statValue, { color: colors.text }]}>{stats.totalGamesPlayed}</Text>
+          </Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            Games Won: <Text style={[styles.statValue, { color: colors.text }]}>{stats.gamesWon}</Text>
+          </Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            Games Abandoned: <Text style={[styles.statValue, { color: colors.text }]}>{stats.gamesAbandoned}</Text>
+          </Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            Win Rate: <Text style={[styles.statValue, { color: colors.text }]}>{stats.winRate}%</Text>
+          </Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            Total Time Played: <Text style={[styles.statValue, { color: colors.text }]}>{stats.totalTimePlayed}</Text>
+          </Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            Total Hints Used: <Text style={[styles.statValue, { color: colors.text }]}>{stats.totalHintsUsed}</Text>
+          </Text>
         </View>
 
-        <View style={styles.statCard}>
-          <Text style={styles.cardTitle}>Performance by Difficulty</Text>
-          {stats.difficultiesToProcess.map(diff => (
-            <View key={diff} style={styles.difficultyStatRow}>
-              <Text style={styles.difficultyName}>{diff}:</Text>
-              <View style={styles.difficultyValues}>
-                <Text style={styles.statText}>Wins: <Text style={styles.statValue}>{stats.winsByDifficulty[diff]}</Text></Text>
-                <Text style={styles.statText}>Avg Time: <Text style={styles.statValue}>{stats.avgTimeByDifficulty[diff]}</Text></Text>
-                <Text style={styles.statText}>Best Time: <Text style={styles.statValue}>{stats.bestTimeByDifficulty[diff]}</Text></Text>
+        {/* Performance by Difficulty */}
+        <View style={[styles.card, { backgroundColor: colors.white }]}>
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text, borderBottomColor: colors.accent }
+            ]}
+          >
+            Performance by Difficulty
+          </Text>
+          {stats.difficulties.map(diff => (
+            <View
+              key={diff}
+              style={[styles.diffRow, { borderLeftColor: colors.accent }]}
+            >
+              <Text style={[styles.diffName, { color: colors.text }]}>{diff}:</Text>
+              <View style={styles.diffValues}>
+                <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                  Wins: <Text style={[styles.statValue, { color: colors.text }]}>{stats.winsByDifficulty[diff]}</Text>
+                </Text>
+                <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                  Avg Time: <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgTimeByDifficulty[diff]}</Text>
+                </Text>
+                <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                  Best Time: <Text style={[styles.statValue, { color: colors.text }]}>{stats.bestTimeByDifficulty[diff]}</Text>
+                </Text>
               </View>
             </View>
           ))}
         </View>
 
         {stats.totalGamesPlayed === 0 && (
-          <Text style={styles.noStatsText}>Play some games to see your stats here!</Text>
+          <Text style={[styles.noStats, { color: colors.textSecondary }]}>
+            Play some games to see your stats here!
+          </Text>
         )}
       </ScrollView>
     </SafeAreaView>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
-  safeAreaContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  contentContainer: {
-    padding: 20,
-    alignItems: 'center',
+  safeArea: {
+    flex: 1
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
+    alignItems: 'center'
   },
   loadingText: {
     marginTop: 10,
-    fontSize: 16,
-    color: COLORS.textPrimary,
+    fontSize: 16
+  },
+  contentContainer: {
+    padding: 20,
+    alignItems: 'center'
   },
   header: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 20,
+    marginBottom: 20
   },
-  statCard: {
-    backgroundColor: COLORS.white,
+  card: {
+    width: '100%',
+    maxWidth: 400,
     borderRadius: 10,
     padding: 15,
     marginBottom: 20,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: COLORS.black,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 3
   },
   cardTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
     marginBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cellBorder,
-    paddingBottom: 5,
+    paddingBottom: 5
   },
   statText: {
     fontSize: 16,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
+    marginBottom: 5
   },
   statValue: {
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
+    fontWeight: 'bold'
   },
-  difficultyStatRow: {
+  diffRow: {
     marginBottom: 10,
     paddingLeft: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: COLORS.interactive,
+    borderLeftWidth: 2
   },
-  difficultyName: {
+  diffName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 5,
+    marginBottom: 5
   },
-  difficultyValues: {
-    paddingLeft: 10,
+  diffValues: {
+    paddingLeft: 10
   },
-  noStatsText: {
+  noStats: {
     fontSize: 18,
-    color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 50,
-  },
-});
-
-export default StatsScreen;
-
+    marginTop: 50
+  }
+})

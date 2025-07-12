@@ -1,23 +1,41 @@
 // File: src/components/ErrorBoundary.js
+
 import React from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 
 export default class ErrorBoundary extends React.Component {
-  state = { hasError: false, error: null }
+  constructor(props) {
+    super(props)
+    this.state = {
+      hasError: false,
+      error: null
+    }
+  }
 
   static getDerivedStateFromError(error) {
+    // Update state so the next render shows the fallback UI.
     return { hasError: true, error }
   }
 
-  reset = () => this.setState({ hasError: false, error: null })
+  componentDidCatch(error, info) {
+    // You can log the error to an error reporting service here
+    console.log('ErrorBoundary caught an error:', error, info)
+  }
+
+  handleReset = () => {
+    // Clear the error and try rendering children again
+    this.setState({ hasError: false, error: null })
+  }
 
   render() {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong.</Text>
-          <Text style={styles.message}>{this.state.error?.message}</Text>
-          <TouchableOpacity style={styles.button} onPress={this.reset}>
+          <Text style={styles.title}>Oops! Something went wrong.</Text>
+          <Text style={styles.message}>
+            {this.state.error?.toString() || 'Unknown error'}
+          </Text>
+          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
             <Text style={styles.buttonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -28,9 +46,30 @@ export default class ErrorBoundary extends React.Component {
 }
 
 const styles = StyleSheet.create({
-  container:    { flex:1, justifyContent:'center', alignItems:'center', padding:20 },
-  title:        { fontSize:20, fontWeight:'bold', marginBottom:10 },
-  message:      { fontSize:14, color:'grey', textAlign:'center', marginBottom:20 },
-  button:       { paddingHorizontal:20, paddingVertical:10, backgroundColor:'#007AFF', borderRadius:5 },
-  buttonText:   { color:'white', fontWeight:'600' }
+  container: {
+    flex:           1,
+    justifyContent: 'center',
+    alignItems:     'center',
+    padding:        20
+  },
+  title: {
+    fontSize:   20,
+    fontWeight: 'bold',
+    marginBottom: 10
+  },
+  message: {
+    fontSize:  16,
+    marginBottom: 20,
+    textAlign: 'center'
+  },
+  button: {
+    backgroundColor: '#fd6b02',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5
+  },
+  buttonText: {
+    color:      '#fff',
+    fontWeight: '600'
+  }
 })

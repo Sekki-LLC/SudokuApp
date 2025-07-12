@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SudokuApp",
-    "slug": "SudokuApp",
+    "name": "GridGenius Sudoku",
+    "slug": "grid-genius-sudoku",
     "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,7 +9,12 @@
     "newArchEnabled": true,
     "plugins": [
       "expo-dev-client",
-      "expo-ads-admob"
+      [
+        "expo-ads-admob",
+        {
+          "iosAppId": "ca-app-pub-7765897544369826~3669005398"
+        }
+      ]
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -18,14 +23,28 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.SudokuApp"
+      "bundleIdentifier": "io.Sekki.SudokuApp",
+      "infoPlist": {
+        "CFBundleDisplayName": "GridGenius Sudoku",
+        "GADApplicationIdentifier": "ca-app-pub-7765897544369826~3669005398"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "manifest": {
+        "application": {
+          "meta-data": [
+            {
+              "android:name": "com.google.android.gms.ads.APPLICATION_ID",
+              "android:value": "ca-app-pub-XXXXXXXXXXXXXXX~YYYYYYYYYY"
+            }
+          ]
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -1,547 +1,335 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
+// File: src/screens/Settings/SettingsScreen.js
+
+import React, { useState, useEffect } from 'react'
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
   Alert,
-  Switch 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { useGameSettings } from '../../contexts/GameSettingsContext';
-import { COLORS } from '../../constants/colors';
+  Switch,
+  Dimensions
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useGameSettings } from '../../contexts/GameSettingsContext'
+import { useTheme } from '../../contexts/ThemeContext'
+import 'react-native-get-random-values'
+import { v4 as uuidv4 } from 'uuid'
+import { loadAllGames, deleteGame } from '../../services/GameStorageService'
 
-const SettingsScreen = () => {
-  const { selectedDifficulty, setSelectedDifficulty } = useGameSettings();
-  const [userLevel, setUserLevel] = useState(3);
-  const [dailyChallengeCompleted, setDailyChallengeCompleted] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [vibrationEnabled, setVibrationEnabled] = useState(true);
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+const { width } = Dimensions.get('window')
+const DAILY_GAME_KEY = '@sudokuapp:dailyGameId'
+const DAILY_DONE_KEY = '@sudokuapp:dailyChallengeCompleted'
 
-  // Achievements data
-  const achievements = [
-    {
-      id: 'first_win',
-      title: 'First Victory',
-      description: 'Complete your first puzzle',
-      progress: 100,
-      unlocked: true,
-      reward: '10 coins'
-    },
-    {
-      id: 'speed_demon',
-      title: 'Speed Demon',
-      description: 'Solve a puzzle in under 5 minutes',
-      progress: 75,
-      unlocked: false,
-      reward: '25 coins'
-    },
-    {
-      id: 'streak_master',
-      title: 'Streak Master',
-      description: 'Play 7 days in a row',
-      progress: 42,
-      unlocked: false,
-      reward: '50 coins'
-    },
-    {
-      id: 'perfectionist',
-      title: 'Perfectionist',
-      description: 'Solve 10 puzzles without hints',
-      progress: 30,
-      unlocked: false,
-      reward: '100 coins'
-    },
-    {
-      id: 'master_solver',
-      title: 'Master Solver',
-      description: 'Complete 100 puzzles',
-      progress: 67,
-      unlocked: false,
-      reward: '200 coins'
+export default function SettingsScreen({ navigation }) {
+  const { selectedDifficulty, setSelectedDifficulty } = useGameSettings()
+  const { colors } = useTheme()
+
+  const [dailyGameId, setDailyGameId]         = useState(null)
+  const [dailyCompleted, setDailyCompleted]   = useState(false)
+  const [soundEnabled, setSoundEnabled]       = useState(true)
+  const [vibrationEnabled, setVibrationEnabled] = useState(true)
+  const [hapticsEnabled, setHapticsEnabled]     = useState(true)
+
+  // load persisted daily state
+  useEffect(() => {
+    AsyncStorage.multiGet([DAILY_GAME_KEY, DAILY_DONE_KEY])
+      .then(entries => {
+        const savedId   = entries[0][1]
+        const savedDone = entries[1][1]
+        if (savedId)         setDailyGameId(savedId)
+        if (savedDone === 'true') setDailyCompleted(true)
+      })
+      .catch(console.warn)
+  }, [])
+
+  const startOrResumeDaily = async () => {
+    if (dailyCompleted) {
+      return Alert.alert('Already Completed', 'Come back tomorrow for a new challenge!')
     }
-  ];
-
-  const difficulties = [
-    { name: 'Easy', cellsToRemove: 40, description: 'Perfect for beginners' },
-    { name: 'Medium', cellsToRemove: 50, description: 'A good challenge' },
-    { name: 'Hard', cellsToRemove: 60, description: 'For experienced players' },
-    { name: 'Expert', cellsToRemove: 70, description: 'Ultimate challenge' }
-  ];
-
-  const handleDailyChallenge = () => {
-    if (dailyChallengeCompleted) {
-      Alert.alert('Already Completed', 'Come back tomorrow for a new challenge!');
-    } else {
-      Alert.alert('Daily Challenge', 'Starting today\'s special puzzle...', [
-        { text: 'Cancel' },
-        { 
-          text: 'Start', 
-          onPress: () => {
-            // Navigate to daily challenge puzzle
-            setDailyChallengeCompleted(true);
-          }
-        }
-      ]);
+    let id = dailyGameId
+    if (!id) {
+      id = uuidv4()
+      setDailyGameId(id)
+      await AsyncStorage.setItem(DAILY_GAME_KEY, id)
     }
-  };
+    navigation.navigate('Game', {
+      isDailyChallenge: true,
+      gameId: id
+    })
+    if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+  }
 
-  const handleClearAllGames = () => {
+  // Clear everything: all saved games + daily challenge
+  const handleClearAll = () => {
     Alert.alert(
       'Clear All Saved Games',
-      'Are you sure you want to delete all saved games? This action cannot be undone.',
+      'Are you sure? This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete All',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Success', 'All saved games have been deleted.');
+          onPress: async () => {
+            try {
+              // delete each saved game
+              const all = await loadAllGames()
+              await Promise.all(all.map(g => deleteGame(g.id)))
+              // clear daily challenge keys
+              await AsyncStorage.multiRemove([DAILY_GAME_KEY, DAILY_DONE_KEY])
+              setDailyGameId(null)
+              setDailyCompleted(false)
+
+              Alert.alert('Success', 'All saved games have been deleted.')
+              if (hapticsEnabled) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+              }
+            } catch (err) {
+              console.warn(err)
+              Alert.alert('Error', 'Could not clear saved games.')
+            }
           }
         }
       ]
-    );
-  };
+    )
+  }
 
-  const handleDifficultySelect = (difficulty) => {
-    setSelectedDifficulty(difficulty);
-    Alert.alert('Difficulty Updated', `New games will be set to ${difficulty.name} difficulty.`);
-  };
+  const updateDifficulty = diff => {
+    setSelectedDifficulty(diff)
+    Alert.alert('Difficulty Updated', `New games will be ${diff.name}.`)
+    if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  }
 
-  const renderAchievement = (achievement) => (
-    <View key={achievement.id} style={styles.achievementCard}>
+  // Achievements data
+  const achievements = [
+    { id: 'first_win', title: 'First Victory', description: 'Complete your first puzzle', progress: 100, unlocked: true, reward: '10 tokens' },
+    { id: 'speed_demon', title: 'Speed Demon', description: 'Solve a puzzle in under 5 minutes', progress: 75, unlocked: false, reward: '25 tokens' },
+    { id: 'streak_master', title: 'Streak Master', description: 'Play 7 days in a row', progress: 42, unlocked: false, reward: '50 tokens' },
+    { id: 'perfectionist', title: 'Perfectionist', description: 'Solve 10 puzzles without hints', progress: 30, unlocked: false, reward: '100 tokens' },
+    { id: 'master_solver', title: 'Master Solver', description: 'Complete 100 puzzles', progress: 67, unlocked: false, reward: '200 tokens' }
+  ]
+
+  // Difficulty options
+  const difficulties = [
+    { name: 'Easy',   cellsToRemove: 40, description: 'Perfect for beginners' },
+    { name: 'Medium', cellsToRemove: 50, description: 'A good challenge'       },
+    { name: 'Hard',   cellsToRemove: 60, description: 'For experienced players' },
+    { name: 'Expert', cellsToRemove: 70, description: 'Ultimate challenge'    }
+  ]
+
+  const renderAchievement = ach => (
+    <View key={ach.id} style={[styles.achievementCard, { backgroundColor: colors.white }]}>
       <View style={styles.achievementHeader}>
-        <Ionicons 
-          name={achievement.unlocked ? 'trophy' : 'trophy-outline'} 
-          size={24} 
-          color={achievement.unlocked ? '#fd6b02' : COLORS.textSecondary} 
+        <Ionicons
+          name={ach.unlocked ? 'trophy' : 'trophy-outline'}
+          size={24}
+          color={ach.unlocked ? '#fd6b02' : colors.textSecondary}
         />
         <View style={styles.achievementInfo}>
-          <Text style={styles.achievementTitle}>{achievement.title}</Text>
-          <Text style={styles.achievementDescription}>{achievement.description}</Text>
+          <Text style={[styles.achievementTitle, { color: colors.text }]}>{ach.title}</Text>
+          <Text style={[styles.achievementDescription, { color: colors.textSecondary }]}>{ach.description}</Text>
         </View>
-        <Text style={styles.achievementReward}>{achievement.reward}</Text>
+        <Text style={[styles.achievementReward, { color: '#fd6b02' }]}>{ach.reward}</Text>
       </View>
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${achievement.progress}%` }
-            ]} 
-          />
+          <View style={[styles.progressFill, { width: `${ach.progress}%`, backgroundColor: colors.accent }]} />
         </View>
-        <Text style={styles.progressText}>{achievement.progress}%</Text>
+        <Text style={[styles.progressText, { color: colors.textSecondary }]}>{ach.progress}%</Text>
       </View>
     </View>
-  );
+  )
 
-  const renderDifficulty = (difficulty) => (
+  const renderDifficulty = diff => (
     <TouchableOpacity
-      key={difficulty.name}
+      key={diff.name}
       style={[
         styles.difficultyCard,
-        selectedDifficulty.name === difficulty.name && styles.selectedDifficulty
+        { backgroundColor: colors.white },
+        selectedDifficulty.name === diff.name && { borderColor: colors.accent, borderWidth: 2 }
       ]}
-      onPress={() => handleDifficultySelect(difficulty)}
+      onPress={() => updateDifficulty(diff)}
     >
       <View style={styles.difficultyInfo}>
-        <Text style={styles.difficultyName}>{difficulty.name}</Text>
-        <Text style={styles.difficultyDescription}>{difficulty.description}</Text>
+        <Text style={[styles.difficultyName, { color: colors.text }]}>{diff.name}</Text>
+        <Text style={[styles.difficultyDescription, { color: colors.textSecondary }]}>{diff.description}</Text>
       </View>
-      {selectedDifficulty.name === difficulty.name && (
-        <Ionicons name="checkmark-circle" size={24} color={COLORS.interactive} />
+      {selectedDifficulty.name === diff.name && (
+        <Ionicons name="checkmark-circle" size={24} color={colors.accent} />
       )}
     </TouchableOpacity>
-  );
+  )
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
+
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
+        <View style={[styles.header, { borderBottomColor: colors.cellBorder }]}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
         </View>
 
         {/* Daily Challenge */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Challenge</Text>
-          <TouchableOpacity 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Challenge</Text>
+          <TouchableOpacity
             style={[
-              styles.dailyChallengeCard,
-              dailyChallengeCompleted && styles.completedChallenge
+              styles.dailyCard,
+              { backgroundColor: colors.white },
+              dailyCompleted && styles.completedCard
             ]}
-            onPress={handleDailyChallenge}
+            onPress={startOrResumeDaily}
           >
             <View style={styles.challengeHeader}>
-              <Ionicons 
-                name={dailyChallengeCompleted ? 'checkmark-circle' : 'calendar'} 
-                size={32} 
-                color={dailyChallengeCompleted ? '#28a745' : COLORS.interactive} 
+              <Ionicons
+                name={dailyCompleted ? 'checkmark-circle' : (dailyGameId ? 'play-circle' : 'calendar')}
+                size={32}
+                color={dailyCompleted ? '#28a745' : colors.accent}
               />
               <View style={styles.challengeInfo}>
-                <Text style={styles.challengeTitle}>
-                  {dailyChallengeCompleted ? 'Challenge Complete!' : 'Daily Challenge'}
+                <Text style={[styles.challengeTitle, { color: colors.text }]}>
+                  {dailyCompleted
+                    ? 'Challenge Complete!'
+                    : (dailyGameId ? 'Resume Challenge' : 'Daily Challenge')}
                 </Text>
-                <Text style={styles.challengeDescription}>
-                  {dailyChallengeCompleted ? 
-                    'Come back tomorrow for a new challenge!' : 
-                    'Complete today\'s special puzzle for bonus coins!'
-                  }
+                <Text style={[styles.challengeDescription, { color: colors.textSecondary }]}>
+                  {dailyCompleted
+                    ? 'Come back tomorrow for a new one'
+                    : (dailyGameId ? 'Tap to continue today’s puzzle' : "Complete today's puzzle for")}
                 </Text>
+                {!dailyCompleted && (
+                  <Text style={[styles.tokenBadge, { color: '#fd6b02' }]}>
+                    +30 tokens
+                  </Text>
+                )}
               </View>
-              <Text style={styles.challengeReward}>+30 coins</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Your Progress */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Progress</Text>
-          <View style={styles.skillCard}>
-            <View style={styles.skillHeader}>
-              <Ionicons name="trending-up" size={24} color={COLORS.interactive} />
-              <Text style={styles.skillTitle}>Skill Level {userLevel}</Text>
-            </View>
-            <Text style={styles.skillDescription}>
-              Keep playing to unlock harder difficulties and earn more rewards!
-            </Text>
-            <View style={styles.skillProgress}>
-              <View style={styles.skillProgressBar}>
-                <View style={[styles.skillProgressFill, { width: '65%' }]} />
-              </View>
-              <Text style={styles.skillProgressText}>65% to Level {userLevel + 1}</Text>
-            </View>
-          </View>
-        </View>
-
         {/* Achievements */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
-          <Text style={styles.sectionSubtitle}>Track your Sudoku mastery</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Achievements</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            Track your Sudoku mastery
+          </Text>
           {achievements.map(renderAchievement)}
         </View>
 
         {/* Game Preferences */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Game Preferences</Text>
-          
-          {/* Sound Settings */}
-          <View style={styles.settingRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Game Preferences</Text>
+          {/* Sound Effects */}
+          <View style={[styles.settingRow, { backgroundColor: colors.white }]}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingTitle}>Sound Effects</Text>
-              <Text style={styles.settingDescription}>Play sounds for game actions</Text>
+              <Text style={[styles.settingTitle, { color: colors.text }]}>Sound Effects</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>Play sounds for game actions</Text>
             </View>
             <Switch
               value={soundEnabled}
-              onValueChange={setSoundEnabled}
-              trackColor={{ false: '#767577', true: COLORS.selectedCell }}
-              thumbColor={soundEnabled ? COLORS.interactive : '#f4f3f4'}
+              onValueChange={v => {
+                setSoundEnabled(v)
+                if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+              }}
+              trackColor={{ false: '#767577', true: colors.accent }}
+              thumbColor={soundEnabled ? colors.interactive : '#f4f3f4'}
             />
           </View>
-
-          {/* Vibration Settings */}
-          <View style={styles.settingRow}>
+          {/* Vibration */}
+          <View style={[styles.settingRow, { backgroundColor: colors.white }]}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingTitle}>Vibration</Text>
-              <Text style={styles.settingDescription}>Vibrate on game actions</Text>
+              <Text style={[styles.settingTitle, { color: colors.text }]}>Vibration</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>Vibrate on game actions</Text>
             </View>
             <Switch
               value={vibrationEnabled}
               onValueChange={setVibrationEnabled}
-              trackColor={{ false: '#767577', true: COLORS.selectedCell }}
-              thumbColor={vibrationEnabled ? COLORS.interactive : '#f4f3f4'}
+              trackColor={{ false: '#767577', true: colors.accent }}
+              thumbColor={vibrationEnabled ? colors.interactive : '#f4f3f4'}
             />
           </View>
-
-          {/* Auto-save Settings */}
-          <View style={styles.settingRow}>
+          {/* Haptic Feedback */}
+          <View style={[styles.settingRow, { backgroundColor: colors.white }]}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingTitle}>Auto-Save</Text>
-              <Text style={styles.settingDescription}>Automatically save game progress</Text>
+              <Text style={[styles.settingTitle, { color: colors.text }]}>Haptic Feedback</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>Light tap on errors and presses</Text>
             </View>
             <Switch
-              value={autoSaveEnabled}
-              onValueChange={setAutoSaveEnabled}
-              trackColor={{ false: '#767577', true: COLORS.selectedCell }}
-              thumbColor={autoSaveEnabled ? COLORS.interactive : '#f4f3f4'}
+              value={hapticsEnabled}
+              onValueChange={setHapticsEnabled}
+              trackColor={{ false: '#767577', true: colors.accent }}
+              thumbColor={hapticsEnabled ? colors.interactive : '#f4f3f4'}
             />
           </View>
         </View>
 
         {/* Difficulty Level */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Difficulty Level</Text>
-          <Text style={styles.sectionSubtitle}>Choose your preferred challenge level</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Difficulty Level</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            Choose your preferred challenge level
+          </Text>
           {difficulties.map(renderDifficulty)}
         </View>
 
         {/* Data Management */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data Management</Text>
-          
-          <TouchableOpacity style={styles.dangerButton} onPress={handleClearAllGames}>
+          <TouchableOpacity style={styles.dangerBtn} onPress={handleClearAll}>
             <Ionicons name="trash" size={20} color="#dc3545" />
-            <Text style={styles.dangerButtonText}>Clear All Saved Games</Text>
+            <Text style={styles.dangerText}>Clear All Saved Games</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Footer spacing */}
         <View style={styles.footer} />
+
       </ScrollView>
     </SafeAreaView>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.cellBorder,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
-  section: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 5,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 15,
-  },
-  dailyChallengeCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 15,
-    elevation: 2,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  completedChallenge: {
-    backgroundColor: '#f8f9fa',
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  challengeInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  challengeTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
-  challengeDescription: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  challengeReward: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fd6b02',
-  },
-  skillCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 15,
-    elevation: 2,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  skillHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  skillTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginLeft: 10,
-  },
-  skillDescription: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 15,
-  },
-  skillProgress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  skillProgressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#e9ecef',
-    borderRadius: 4,
-    marginRight: 10,
-  },
-  skillProgressFill: {
-    height: '100%',
-    backgroundColor: COLORS.interactive,
-    borderRadius: 4,
-  },
-  skillProgressText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  achievementCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 2,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  achievementHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  achievementInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  achievementTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
-  achievementDescription: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  achievementReward: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#fd6b02',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressBar: {
-    flex: 1,
-    height: 6,
-    backgroundColor: '#e9ecef',
-    borderRadius: 3,
-    marginRight: 10,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.interactive,
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    minWidth: 35,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 1,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  settingInfo: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
-  settingDescription: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  difficultyCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 1,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  selectedDifficulty: {
-    borderWidth: 2,
-    borderColor: COLORS.interactive,
-  },
-  difficultyInfo: {
-    flex: 1,
-  },
-  difficultyName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
-  difficultyDescription: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  dangerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#dc3545',
-  },
-  dangerButtonText: {
-    fontSize: 16,
-    color: '#dc3545',
-    marginLeft: 8,
-    fontWeight: '600',
-  },
-  footer: {
-    height: 20,
-  },
-});
+  container:            { flex: 1 },
+  header:               { paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1 },
+  headerTitle:          { fontSize: 28, fontWeight: 'bold' },
+  section:              { paddingHorizontal: 20, paddingVertical: 15 },
+  sectionTitle:         { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
+  sectionSubtitle:      { fontSize: 14, marginBottom: 15 },
 
-export default SettingsScreen;
+  dailyCard:            { borderRadius: 12, padding: 15, elevation: 2, shadowColor: '#000', shadowOffset: { width:0, height:2 }, shadowOpacity:0.1, shadowRadius:4 },
+  completedCard:        { backgroundColor: '#f8f9fa' },
+  challengeHeader:      { flexDirection: 'row', alignItems: 'center' },
+  challengeInfo:        { flex:1, marginLeft:15 },
+  challengeTitle:       { fontSize:16, fontWeight:'bold' },
+  challengeDescription: { fontSize:14, marginTop:2 },
+  tokenBadge:           { fontSize:14, fontWeight:'bold', marginTop:4 },
 
+  achievementCard:      { borderRadius:12, padding:15, marginBottom:10, elevation:2, shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.1, shadowRadius:4 },
+  achievementHeader:    { flexDirection:'row', alignItems:'center', marginBottom:10 },
+  achievementInfo:      { flex:1, marginLeft:15 },
+  achievementTitle:     { fontSize:16, fontWeight:'bold' },
+  achievementDescription:{ fontSize:14, marginTop:2 },
+  achievementReward:    { fontSize:12, fontWeight:'bold' },
+  progressContainer:    { flexDirection:'row', alignItems:'center' },
+  progressBar:          { flex:1, height:6, backgroundColor:'#e9ecef', borderRadius:3, marginRight:10 },
+  progressFill:         { height:'100%', borderRadius:3 },
+  progressText:         { fontSize:12, minWidth:35 },
+
+  settingRow:           { flexDirection:'row', alignItems:'center', borderRadius:10, padding:15, marginBottom:10, elevation:1, shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.1, shadowRadius:2 },
+  settingInfo:          { flex:1 },
+  settingTitle:         { fontSize:16, fontWeight:'bold' },
+  settingDescription:   { fontSize:14, marginTop:2 },
+
+  difficultyCard:       { borderRadius:10, padding:15, marginBottom:10, elevation:1, shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.1, shadowRadius:2, flexDirection:'row', alignItems:'center' },
+  difficultyInfo:       { flex:1 },
+  difficultyName:       { fontSize:16, fontWeight:'bold' },
+  difficultyDescription:{ fontSize:14, marginTop:2 },
+
+  dangerBtn:            { flexDirection:'row', alignItems:'center', justifyContent:'center', borderRadius:10, padding:15, borderWidth:1 },
+  dangerText:           { fontSize:16, marginLeft:8, fontWeight:'600', color:'#dc3545' },
+
+  footer:               { height:20 }
+})

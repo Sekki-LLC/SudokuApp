@@ -1,3 +1,5 @@
+// File: src/navigation/MainTabNavigator.js
+
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,9 +15,10 @@ import { COLORS } from '../constants/colors';
 
 const Tab = createBottomTabNavigator();
 
-const MainTabNavigator = () => {
+export default function MainTabNavigator() {
   return (
     <Tab.Navigator
+      initialRouteName="Home"                     // <— Set Home as the default tab
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
@@ -34,11 +37,11 @@ const MainTabNavigator = () => {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: COLORS.interactive,
+        tabBarActiveTintColor:   COLORS.interactive,
         tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarStyle: {
           backgroundColor: COLORS.background,
-          borderTopColor: COLORS.cellBorder,
+          borderTopColor:  COLORS.cellBorder,
         },
         headerShown: false,
       })}
@@ -70,7 +73,4 @@ const MainTabNavigator = () => {
       />
     </Tab.Navigator>
   );
-};
-
-export default MainTabNavigator;
-
+}

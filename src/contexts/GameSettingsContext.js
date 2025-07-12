@@ -1,68 +1,125 @@
-// SudokuApp/src/contexts/GameSettingsContext.js
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
+// File: src/contexts/GameSettingsContext.js
 
-// Define difficulty levels
+import React, { createContext, useState, useContext, useEffect } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+// Difficulty levels
 export const difficultyLevels = [
-  { name: 'Very Easy', cellsToRemove: 30, color: '#4CAF50' }, // Green
-  { name: 'Easy', cellsToRemove: 40, color: '#8BC34A' },    // Light Green
-  { name: 'Medium', cellsToRemove: 50, color: '#FFC107' },   // Amber
-  { name: 'Hard', cellsToRemove: 60, color: '#FF9800' },    // Orange
-  { name: 'Very Hard', cellsToRemove: 70, color: '#F44336' }, // Red
-];
+  { name: 'Very Easy', cellsToRemove: 30, color: '#4CAF50' },
+  { name: 'Easy',      cellsToRemove: 40, color: '#8BC34A' },
+  { name: 'Medium',    cellsToRemove: 50, color: '#FFC107' },
+  { name: 'Hard',      cellsToRemove: 60, color: '#FF9800' },
+  { name: 'Very Hard', cellsToRemove: 70, color: '#F44336' },
+]
 
-// Key for AsyncStorage
-const DIFFICULTY_STORAGE_KEY = '@sudoku_difficulty';
+// Storage keys
+const DIFFICULTY_STORAGE_KEY         = '@sudokuapp:selectedDifficulty'
+const DAILY_CHALLENGE_ID_STORAGE_KEY = '@sudokuapp:dailyChallengeId'
+const DAILY_CHALLENGE_COMPLETE_KEY   = '@sudokuapp:dailyChallengeComplete'
 
-// Create the context
-const GameSettingsContext = createContext();
+const GameSettingsContext = createContext({
+  selectedDifficulty: difficultyLevels[2],       // Medium by default
+  setSelectedDifficulty: () => {},
 
-// Create a provider component
-export const GameSettingsProvider = ({ children }) => {
-  // State to hold the selected difficulty, default to Medium
-  const [selectedDifficulty, setSelectedDifficulty] = useState(
-    difficultyLevels.find(level => level.name === 'Medium')
-  );
+  dailyChallengeId: null,
+  setDailyChallengeId: () => {},
 
-  // Effect to load saved difficulty from AsyncStorage on app start
+  isDailyChallengeComplete: false,
+  setDailyChallengeComplete: () => {}
+})
+
+export function GameSettingsProvider({ children }) {
+  const [selectedDifficulty, setSelectedDifficultyState] = useState(
+    difficultyLevels.find(d => d.name === 'Medium')
+  )
+  const [dailyChallengeId,   setDailyChallengeIdState]  = useState(null)
+  const [isDailyChallengeComplete, setDailyCompleteState] = useState(false)
+
+  // Load persisted settings on mount
   useEffect(() => {
-    const loadSavedDifficulty = async () => {
+    async function loadAll() {
       try {
-        const savedDifficultyName = await AsyncStorage.getItem(DIFFICULTY_STORAGE_KEY);
-        if (savedDifficultyName) {
-          const foundDifficulty = difficultyLevels.find(level => level.name === savedDifficultyName);
-          if (foundDifficulty) {
-            setSelectedDifficulty(foundDifficulty);
-            console.log(`[GameSettingsContext] Loaded saved difficulty: ${foundDifficulty.name}`);
-          }
+        const [
+          savedDiffName,
+          savedDailyId,
+          savedComplete
+        ] = await Promise.all([
+          AsyncStorage.getItem(DIFFICULTY_STORAGE_KEY),
+          AsyncStorage.getItem(DAILY_CHALLENGE_ID_STORAGE_KEY),
+          AsyncStorage.getItem(DAILY_CHALLENGE_COMPLETE_KEY)
+        ])
+
+        if (savedDiffName) {
+          const match = difficultyLevels.find(d => d.name === savedDiffName)
+          if (match) setSelectedDifficultyState(match)
         }
-      } catch (error) {
-        console.error("Failed to load difficulty from storage:", error);
+        if (savedDailyId) {
+          setDailyChallengeIdState(savedDailyId)
+        }
+        if (savedComplete !== null) {
+          setDailyCompleteState(savedComplete === 'true')
+        }
+      } catch (err) {
+        console.warn('GameSettingsContext loadAll error', err)
       }
-    };
-
-    loadSavedDifficulty();
-  }, []); // Run only once on mount
-
-  // Function to update difficulty and save it to AsyncStorage
-  const updateDifficulty = async (difficulty) => {
-    try {
-      setSelectedDifficulty(difficulty);
-      await AsyncStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty.name);
-      console.log(`[GameSettingsContext] Saved new difficulty: ${difficulty.name}`);
-    } catch (error) {
-      console.error("Failed to save difficulty to storage:", error);
     }
-  };
+    loadAll()
+  }, [])
+
+  // Persist difficulty
+  const setSelectedDifficulty = async diff => {
+    try {
+      setSelectedDifficultyState(diff)
+      await AsyncStorage.setItem(DIFFICULTY_STORAGE_KEY, diff.name)
+    } catch (err) {
+      console.warn('Failed saving difficulty', err)
+    }
+  }
+
+  // Persist challenge ID
+  const setDailyChallengeId = async id => {
+    try {
+      setDailyChallengeIdState(id)
+      if (id === null) {
+        await AsyncStorage.removeItem(DAILY_CHALLENGE_ID_STORAGE_KEY)
+      } else {
+        await AsyncStorage.setItem(DAILY_CHALLENGE_ID_STORAGE_KEY, id)
+      }
+    } catch (err) {
+      console.warn('Failed saving dailyChallengeId', err)
+    }
+  }
+
+  // Persist completion flag
+  const setDailyChallengeComplete = async flag => {
+    try {
+      setDailyCompleteState(flag)
+      await AsyncStorage.setItem(DAILY_CHALLENGE_COMPLETE_KEY, flag ? 'true' : 'false')
+    } catch (err) {
+      console.warn('Failed saving dailyChallengeComplete', err)
+    }
+  }
 
   return (
-    <GameSettingsContext.Provider value={{ selectedDifficulty, setSelectedDifficulty: updateDifficulty }}>
+    <GameSettingsContext.Provider
+      value={{
+        selectedDifficulty,
+        setSelectedDifficulty,
+        dailyChallengeId,
+        setDailyChallengeId,
+        isDailyChallengeComplete,
+        setDailyChallengeComplete
+      }}
+    >
       {children}
     </GameSettingsContext.Provider>
-  );
-};
+  )
+}
 
-// Custom hook to use the game settings
-export const useGameSettings = () => {
-  return useContext(GameSettingsContext);
-};
+export function useGameSettings() {
+  const ctx = useContext(GameSettingsContext)
+  if (!ctx) {
+    throw new Error('useGameSettings must be used within a GameSettingsProvider')
+  }
+  return ctx
+}

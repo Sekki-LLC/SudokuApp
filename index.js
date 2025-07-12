@@ -1,8 +1,15 @@
+// index.js
+import React, { useEffect } from 'react';
 import { registerRootComponent } from 'expo';
+import { setTestDeviceIDAsync } from 'expo-ads-admob';
+import App from './src/App';
 
-import App from './App';
+function Root() {
+  useEffect(() => {
+    // for simulator; on a real device swap this for your device’s test-ID
+    setTestDeviceIDAsync('SIMULATOR');
+  }, []);
+  return <App />;
+}
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+registerRootComponent(Root);
