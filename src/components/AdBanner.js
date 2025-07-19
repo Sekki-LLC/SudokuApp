@@ -1,17 +1,36 @@
-// src/components/AdBanner.js
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+// File: src/components/AdBanner.js
+
+import React from 'react'
+import { View, StyleSheet } from 'react-native'
+import {
+  BannerAd,
+  BannerAdSize,
+  TestIds
+} from 'react-native-google-mobile-ads'
+
+const AD_UNIT_ID = __DEV__
+  ? TestIds.BANNER
+  : 'ca-app-pub-7765897544369826/XXXXXXXXXX'  // ← your real unit ID (without the “~”)
 
 export default function AdBanner() {
-  // a no-op placeholder so your build doesn’t break
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>(banner placeholder)</Text>
+      <BannerAd
+        unitId={AD_UNIT_ID}
+        size={BannerAdSize.FULL_BANNER}
+        requestOptions={{
+          requestNonPersonalizedAdsOnly: true
+        }}
+      />
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', marginVertical: 10 },
-  text:      { fontSize: 12, color: '#999' },
-});
+  container: {
+    alignItems: 'center',
+    marginVertical: 10,
+    // optionally force a fixed height so layout doesn’t shift:
+    height: BannerAdSize.FULL_BANNER.height
+  }
+})

@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GameSettingsProvider } from './contexts/GameSettingsContext';
 import { ThemeProvider }        from './contexts/ThemeContext';
 import { UserProvider }         from './contexts/UserContext';
+import { FeedbackProvider }     from './contexts/FeedbackContext';
 
 // Navigation
 import MainTabNavigator from './navigation/MainTabNavigator';
@@ -25,37 +26,40 @@ export default function App() {
     <GameSettingsProvider>
       <ThemeProvider>
         <UserProvider>
-          <SafeAreaProvider>
-            <ErrorBoundary>
-              <NavigationContainer
-                ref={navigationRef}
-                onReady={() => {
-                  routeNameRef.current = navigationRef.getCurrentRoute().name;
-                }}
-                onStateChange={() => {
-                  const prev = routeNameRef.current;
-                  const curr = navigationRef.getCurrentRoute().name;
-                  if (prev !== curr) {
-                    routeNameRef.current = curr;
-                  }
-                }}
-              >
-                <Stack.Navigator
-                  initialRouteName="MainTabs"
-                  screenOptions={{ headerShown: false }}
+          <FeedbackProvider>
+            <SafeAreaProvider>
+              <ErrorBoundary>
+                <NavigationContainer
+                  ref={navigationRef}
+                  onReady={() => {
+                    routeNameRef.current = navigationRef.getCurrentRoute().name;
+                  }}
+                  onStateChange={() => {
+                    const prev = routeNameRef.current;
+                    const curr = navigationRef.getCurrentRoute().name;
+                    if (prev !== curr) {
+                      routeNameRef.current = curr;
+                    }
+                  }}
                 >
-                  <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-                  <Stack.Screen
-                    name="Game"
-                    component={GameScreen}
-                    options={{ gestureEnabled: true }}
-                  />
-                </Stack.Navigator>
-              </NavigationContainer>
-            </ErrorBoundary>
-          </SafeAreaProvider>
+                  <Stack.Navigator
+                    initialRouteName="MainTabs"
+                    screenOptions={{ headerShown: false }}
+                  >
+                    <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+                    <Stack.Screen
+                      name="Game"
+                      component={GameScreen}
+                      options={{ gestureEnabled: true }}
+                    />
+                  </Stack.Navigator>
+                </NavigationContainer>
+              </ErrorBoundary>
+            </SafeAreaProvider>
+          </FeedbackProvider>
         </UserProvider>
       </ThemeProvider>
     </GameSettingsProvider>
   );
 }
+

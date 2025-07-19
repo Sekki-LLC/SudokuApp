@@ -1,13 +1,14 @@
 // File: src/screens/MyPuzzles/MyPuzzlesScreen.js
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -18,12 +19,11 @@ import { useTheme } from '../../contexts/ThemeContext'
 export default function MyPuzzlesScreen({ navigation }) {
   const { colors } = useTheme()
   const [savedGames, setSavedGames] = useState([])
-  const [loading, setLoading]       = useState(true)
+  const [loading, setLoading]     = useState(true)
 
   const fetchGames = useCallback(async () => {
     setLoading(true)
     const games = await loadAllGames()
-    // sort newest first
     games.sort((a, b) => b.timestamp - a.timestamp)
     setSavedGames(games)
     setLoading(false)
@@ -36,13 +36,9 @@ export default function MyPuzzlesScreen({ navigation }) {
   )
 
   const handleResumeGame = game => {
-    navigation.navigate('MainTabs', {
-      screen: 'Game',
-      params: {
-        gameId:            game.id,
-        // pass along daily flag so GameScreen knows
-        isDailyChallenge:  game.isDailyChallenge === true
-      }
+    navigation.navigate('Game', {
+      gameId: game.id,
+      isDailyChallenge: game.isDailyChallenge === true
     })
   }
 
@@ -71,12 +67,10 @@ export default function MyPuzzlesScreen({ navigation }) {
   }
 
   const renderItem = ({ item }) => {
-    // If this was the daily challenge, override title
     const title = item.isDailyChallenge
       ? '📅   Daily Challenge'
       : `Sudoku Puzzle (${item.selectedDifficulty?.name || 'Unknown'})`
 
-    // Status string
     let statusText = 'In Progress'
     if (item.isWon)        statusText = 'Won'
     else if (item.isAbandoned) statusText = 'Abandoned'
@@ -141,9 +135,7 @@ export default function MyPuzzlesScreen({ navigation }) {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          Loading saved games...
-        </Text>
+        <ActivityIndicator size="large" color={colors.accent} />
       </SafeAreaView>
     )
   }
@@ -168,12 +160,11 @@ export default function MyPuzzlesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container:         { flex: 1, padding: 20 },
-  header:            { fontSize: 28, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  loadingText:       { fontSize: 18, textAlign: 'center', marginTop: 50 },
-  noGamesText:       { fontSize: 18, textAlign: 'center', marginTop: 50 },
-  listContent:       { paddingBottom: 20 },
-  gameItem:          {
+  container:           { flex: 1, padding: 20 },
+  header:              { fontSize: 28, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  noGamesText:         { fontSize: 18, textAlign: 'center', marginTop: 50 },
+  listContent:         { paddingBottom: 20 },
+  gameItem:            {
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
@@ -186,17 +177,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3
   },
-  gameInfo:          { flex: 1, marginRight: 10 },
-  gameTitle:         { fontSize: 18, fontWeight: 'bold' },
-  gameTimestamp:     { fontSize: 14, marginTop: 5 },
-  gameHints:         { fontSize: 14, marginTop: 2 },
-  gameTime:          { fontSize: 14, marginTop: 2 },
-  gameStatus:        { fontSize: 14, fontWeight: 'bold', marginTop: 5 },
-  gameStatusWon:     { color: '#28a745' },
-  gameStatusAbandoned:{ color: '#dc3545' },
+  gameInfo:            { flex: 1, marginRight: 10 },
+  gameTitle:           { fontSize: 18, fontWeight: 'bold' },
+  gameTimestamp:       { fontSize: 14, marginTop: 5 },
+  gameHints:           { fontSize: 14, marginTop: 2 },
+  gameTime:            { fontSize: 14, marginTop: 2 },
+  gameStatus:          { fontSize: 14, fontWeight: 'bold', marginTop: 5 },
+  gameStatusWon:       { color: '#28a745' },
+  gameStatusAbandoned: { color: '#dc3545' },
   gameStatusInProgress:{ color: '#ffc107' },
-  gameActions:       { flexDirection: 'row' },
-  resumeButton:      { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 5 },
-  deleteButton:      { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 5, marginLeft: 10 },
-  buttonText:        { fontWeight: 'bold', fontSize: 14 }
+  gameActions:         { flexDirection: 'row' },
+  resumeButton:        { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 5 },
+  deleteButton:        { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 5, marginLeft: 10 },
+  buttonText:          { fontWeight: 'bold', fontSize: 14 }
 })

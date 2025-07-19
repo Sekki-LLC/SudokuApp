@@ -8,43 +8,55 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "plugins": [
+      "expo-splash-screen",
       "expo-dev-client",
+      "expo-av",
       [
-        "expo-ads-admob",
+        "react-native-google-mobile-ads",
         {
-          "iosAppId": "ca-app-pub-7765897544369826~3669005398",
-          "androidAppId": "ca-app-pub-XXXXXXXXXXXXXXX~YYYYYYYYYY"
+          "androidAppId": "ca-app-pub-7765897544369826~3669005398",
+          "iosAppId": "ca-app-pub-7765897544369826~3669005398"
         }
       ]
     ],
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
+    },
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#ffffff",
+      "translucent": false
     },
     "ios": {
       "bundleIdentifier": "io.sekki.sudoku",
       "buildNumber": "2",
+      "supportsTablet": true,
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff"
+      },
       "infoPlist": {
+        "CFBundleDisplayName": "GridGenius Sudoku",
+        "CFBundleShortVersionString": "1.2.0",
+        "CFBundleVersion": "2",
         "GADApplicationIdentifier": "ca-app-pub-7765897544369826~3669005398",
-        "CFBundleDisplayName": "GridGenius Sudoku"
+        "UIStatusBarHidden": true
       }
     },
     "android": {
       "package": "io.sekki.sudoku",
+      "versionCode": 2,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/splash.png",
         "backgroundColor": "#ffffff"
       },
-      "manifest": {
-        "application": {
-          "meta-data": [
-            {
-              "android:name": "com.google.android.gms.ads.APPLICATION_ID",
-              "android:value": "ca-app-pub-XXXXXXXXXXXXXXX~YYYYYYYYYY"
-            }
-          ]
-        }
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff"
       }
     }
   }

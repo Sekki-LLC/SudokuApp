@@ -3,10 +3,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const USER_TOKENS_KEY = '@sudokuapp:userTokens';
-const USER_PURCHASED_KEY = '@sudokuapp:purchasedItems';
+const USER_TOKENS_KEY     = '@sudokuapp:userTokens';
+const USER_PURCHASED_KEY  = '@sudokuapp:purchasedItems';
 
-// Create context with a null default so we can error on missing provider
 const UserContext = createContext(null);
 
 /**
@@ -16,10 +15,10 @@ export function UserProvider({ children }) {
   const [tokens, setTokens] = useState(150);       // new players start with 150
   const [purchasedItems, setPurchasedItems] = useState([]); // ids of unlocked features
 
-  // Load saved token count and purchased items on mount
+  // Load saved tokens + purchases once
   useEffect(() => {
     AsyncStorage.multiGet([USER_TOKENS_KEY, USER_PURCHASED_KEY])
-      .then(([ [ , savedTokens ], [ , savedPurchased ] ]) => {
+      .then(([[, savedTokens], [, savedPurchased]]) => {
         if (savedTokens != null && !isNaN(Number(savedTokens))) {
           setTokens(Number(savedTokens));
         }
@@ -35,32 +34,34 @@ export function UserProvider({ children }) {
       .catch(console.warn);
   }, []);
 
-  // Persist tokens
+  // Persist tokens whenever they change
   useEffect(() => {
     AsyncStorage.setItem(USER_TOKENS_KEY, String(tokens)).catch(console.warn);
   }, [tokens]);
 
-  // Persist purchasedItems
+  // Persist purchasedItems whenever they change
   useEffect(() => {
     AsyncStorage.setItem(USER_PURCHASED_KEY, JSON.stringify(purchasedItems)).catch(console.warn);
   }, [purchasedItems]);
 
-  // Add (or subtract) tokens; never let it go below 0
+  // Add (or subtract) tokens; never go below zero
   const addTokens = delta => {
     setTokens(prev => Math.max(0, prev + delta));
   };
 
   // Mark an item as purchased (if not already)
   const addPurchasedItem = itemId => {
-    setPurchasedItems(prev => prev.includes(itemId) ? prev : [...prev, itemId]);
+    setPurchasedItems(prev =>
+      prev.includes(itemId) ? prev : [...prev, itemId]
+    );
   };
 
-  // Memoize the context value to avoid unnecessary re-renders
+  // Expose both setter in case you need to bulk-restore
   const value = useMemo(() => ({
     tokens,
     addTokens,
     purchasedItems,
-    setPurchasedItems,
+    setPurchasedItems,  // for full restores if needed
     addPurchasedItem
   }), [tokens, purchasedItems]);
 
@@ -72,7 +73,7 @@ export function UserProvider({ children }) {
 }
 
 /**
- * Call this hook from any screen to read/add tokens or purchased items:
+ * Hook for screens/components to read or update user tokens/purchases:
  *   const { tokens, addTokens, purchasedItems, addPurchasedItem } = useUser()
  */
 export function useUser() {

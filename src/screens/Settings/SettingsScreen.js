@@ -13,13 +13,23 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import * as Haptics from 'expo-haptics'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useGameSettings } from '../../contexts/GameSettingsContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useFeedback } from '../../contexts/FeedbackContext'
+import * as Haptics from 'expo-haptics'
 import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
-import { loadAllGames, deleteGame } from '../../services/GameStorageService'
+import { clearAllGames } from '../../services/GameStorageService'
+import { loadStats } from '../../services/StatsService'  // new
+// static catalog of your achievements
+const ACHIEVEMENT_CATALOG = [
+  { id: 'first_win', title: 'First Victory', description: 'Complete your first puzzle', goal: 1, reward: '10 tokens' },
+  { id: 'speed_demon', title: 'Speed Demon', description: 'Solve a puzzle in under 5 minutes', goal: 1, timeLimit: 300, reward: '25 tokens' },
+  { id: 'streak_master', title: 'Streak Master', description: 'Play 7 days in a row', goal: 7, reward: '50 tokens' },
+  { id: 'perfectionist', title: 'Perfectionist', description: 'Solve 10 puzzles without hints', goal: 10, reward: '100 tokens' },
+  { id: 'master_solver', title: 'Master Solver', description: 'Complete 100 puzzles', goal: 100, reward: '200 tokens' }
+]
 
 const { width } = Dimensions.get('window')
 const DAILY_GAME_KEY = '@sudokuapp:dailyGameId'
@@ -28,23 +38,64 @@ const DAILY_DONE_KEY = '@sudokuapp:dailyChallengeCompleted'
 export default function SettingsScreen({ navigation }) {
   const { selectedDifficulty, setSelectedDifficulty } = useGameSettings()
   const { colors } = useTheme()
+  const {
+    soundEnabled,
+    vibrationEnabled,
+    hapticsEnabled,
+    setSoundEnabled,
+    setVibrationEnabled,
+    setHapticsEnabled,
+    buttonPressFeedback,
+    successFeedback
+  } = useFeedback()
 
-  const [dailyGameId, setDailyGameId]         = useState(null)
-  const [dailyCompleted, setDailyCompleted]   = useState(false)
-  const [soundEnabled, setSoundEnabled]       = useState(true)
-  const [vibrationEnabled, setVibrationEnabled] = useState(true)
-  const [hapticsEnabled, setHapticsEnabled]     = useState(true)
+  const [dailyGameId, setDailyGameId] = useState(null)
+  const [dailyCompleted, setDailyCompleted] = useState(false)
+  const [achievements, setAchievements] = useState([])  // dynamic
 
-  // load persisted daily state
+  // load daily IDs
   useEffect(() => {
     AsyncStorage.multiGet([DAILY_GAME_KEY, DAILY_DONE_KEY])
       .then(entries => {
-        const savedId   = entries[0][1]
+        const savedId = entries[0][1]
         const savedDone = entries[1][1]
-        if (savedId)         setDailyGameId(savedId)
+        if (savedId) setDailyGameId(savedId)
         if (savedDone === 'true') setDailyCompleted(true)
       })
       .catch(console.warn)
+  }, [])
+
+  // compute achievements from persisted stats
+  useEffect(() => {
+    async function compute() {
+      const stats = await loadStats()
+      const computed = ACHIEVEMENT_CATALOG.map(a => {
+        let progress = 0
+        switch (a.id) {
+          case 'first_win':
+          case 'master_solver':
+            progress = (stats.completed / a.goal) * 100
+            break
+          case 'speed_demon':
+            progress = stats.fastCompletes >= 1 ? 100 : 0
+            break
+          case 'streak_master':
+            progress = (stats.streak / a.goal) * 100
+            break
+          case 'perfectionist':
+            progress = (stats.noHintCount / a.goal) * 100
+            break
+        }
+        const pr = Math.min(100, Math.round(progress))
+        return {
+          ...a,
+          progress: pr,
+          unlocked: pr >= 100
+        }
+      })
+      setAchievements(computed)
+    }
+    compute()
   }, [])
 
   const startOrResumeDaily = async () => {
@@ -61,10 +112,9 @@ export default function SettingsScreen({ navigation }) {
       isDailyChallenge: true,
       gameId: id
     })
-    if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    buttonPressFeedback()
   }
 
-  // Clear everything: all saved games + daily challenge
   const handleClearAll = () => {
     Alert.alert(
       'Clear All Saved Games',
@@ -76,18 +126,13 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              // delete each saved game
-              const all = await loadAllGames()
-              await Promise.all(all.map(g => deleteGame(g.id)))
-              // clear daily challenge keys
+              await clearAllGames()
               await AsyncStorage.multiRemove([DAILY_GAME_KEY, DAILY_DONE_KEY])
               setDailyGameId(null)
               setDailyCompleted(false)
-
               Alert.alert('Success', 'All saved games have been deleted.')
-              if (hapticsEnabled) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-              }
+              successFeedback()
+              navigation.navigate('MainTabs', { screen: 'MyPuzzles' })
             } catch (err) {
               console.warn(err)
               Alert.alert('Error', 'Could not clear saved games.')
@@ -101,25 +146,23 @@ export default function SettingsScreen({ navigation }) {
   const updateDifficulty = diff => {
     setSelectedDifficulty(diff)
     Alert.alert('Difficulty Updated', `New games will be ${diff.name}.`)
-    if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    buttonPressFeedback()
   }
 
-  // Achievements data
-  const achievements = [
-    { id: 'first_win', title: 'First Victory', description: 'Complete your first puzzle', progress: 100, unlocked: true, reward: '10 tokens' },
-    { id: 'speed_demon', title: 'Speed Demon', description: 'Solve a puzzle in under 5 minutes', progress: 75, unlocked: false, reward: '25 tokens' },
-    { id: 'streak_master', title: 'Streak Master', description: 'Play 7 days in a row', progress: 42, unlocked: false, reward: '50 tokens' },
-    { id: 'perfectionist', title: 'Perfectionist', description: 'Solve 10 puzzles without hints', progress: 30, unlocked: false, reward: '100 tokens' },
-    { id: 'master_solver', title: 'Master Solver', description: 'Complete 100 puzzles', progress: 67, unlocked: false, reward: '200 tokens' }
-  ]
+  const handleSoundToggle = (value) => {
+    setSoundEnabled(value)
+    if (value) buttonPressFeedback()
+  }
 
-  // Difficulty options
-  const difficulties = [
-    { name: 'Easy',   cellsToRemove: 40, description: 'Perfect for beginners' },
-    { name: 'Medium', cellsToRemove: 50, description: 'A good challenge'       },
-    { name: 'Hard',   cellsToRemove: 60, description: 'For experienced players' },
-    { name: 'Expert', cellsToRemove: 70, description: 'Ultimate challenge'    }
-  ]
+  const handleVibrationToggle = (value) => {
+    setVibrationEnabled(value)
+    if (value) Haptics.selectionAsync()
+  }
+
+  const handleHapticsToggle = (value) => {
+    setHapticsEnabled(value)
+    if (value) Haptics.selectionAsync()
+  }
 
   const renderAchievement = ach => (
     <View key={ach.id} style={[styles.achievementCard, { backgroundColor: colors.white }]}>
@@ -143,6 +186,13 @@ export default function SettingsScreen({ navigation }) {
       </View>
     </View>
   )
+
+  const difficulties = [
+    { name: 'Easy', cellsToRemove: 40, description: 'Perfect for beginners' },
+    { name: 'Medium', cellsToRemove: 50, description: 'A good challenge' },
+    { name: 'Hard', cellsToRemove: 60, description: 'For experienced players' },
+    { name: 'Expert', cellsToRemove: 70, description: 'Ultimate challenge' }
+  ]
 
   const renderDifficulty = diff => (
     <TouchableOpacity
@@ -199,7 +249,7 @@ export default function SettingsScreen({ navigation }) {
                 <Text style={[styles.challengeDescription, { color: colors.textSecondary }]}>
                   {dailyCompleted
                     ? 'Come back tomorrow for a new one'
-                    : (dailyGameId ? 'Tap to continue today’s puzzle' : "Complete today's puzzle for")}
+                    : (dailyGameId ? 'Tap to continue today\'s puzzle' : 'Complete today\'s puzzle for')}
                 </Text>
                 {!dailyCompleted && (
                   <Text style={[styles.tokenBadge, { color: '#fd6b02' }]}>
@@ -223,44 +273,44 @@ export default function SettingsScreen({ navigation }) {
         {/* Game Preferences */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Game Preferences</Text>
-          {/* Sound Effects */}
           <View style={[styles.settingRow, { backgroundColor: colors.white }]}>
             <View style={styles.settingInfo}>
               <Text style={[styles.settingTitle, { color: colors.text }]}>Sound Effects</Text>
-              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>Play sounds for game actions</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                Play sounds for game actions
+              </Text>
             </View>
             <Switch
               value={soundEnabled}
-              onValueChange={v => {
-                setSoundEnabled(v)
-                if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-              }}
+              onValueChange={handleSoundToggle}
               trackColor={{ false: '#767577', true: colors.accent }}
               thumbColor={soundEnabled ? colors.interactive : '#f4f3f4'}
             />
           </View>
-          {/* Vibration */}
           <View style={[styles.settingRow, { backgroundColor: colors.white }]}>
             <View style={styles.settingInfo}>
               <Text style={[styles.settingTitle, { color: colors.text }]}>Vibration</Text>
-              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>Vibrate on game actions</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                Vibrate on game actions
+              </Text>
             </View>
             <Switch
               value={vibrationEnabled}
-              onValueChange={setVibrationEnabled}
+              onValueChange={handleVibrationToggle}
               trackColor={{ false: '#767577', true: colors.accent }}
               thumbColor={vibrationEnabled ? colors.interactive : '#f4f3f4'}
             />
           </View>
-          {/* Haptic Feedback */}
           <View style={[styles.settingRow, { backgroundColor: colors.white }]}>
             <View style={styles.settingInfo}>
               <Text style={[styles.settingTitle, { color: colors.text }]}>Haptic Feedback</Text>
-              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>Light tap on errors and presses</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                Light tap on errors and presses
+              </Text>
             </View>
             <Switch
               value={hapticsEnabled}
-              onValueChange={setHapticsEnabled}
+              onValueChange={handleHapticsToggle}
               trackColor={{ false: '#767577', true: colors.accent }}
               thumbColor={hapticsEnabled ? colors.interactive : '#f4f3f4'}
             />
@@ -285,51 +335,44 @@ export default function SettingsScreen({ navigation }) {
         </View>
 
         <View style={styles.footer} />
-
       </ScrollView>
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container:            { flex: 1 },
-  header:               { paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1 },
-  headerTitle:          { fontSize: 28, fontWeight: 'bold' },
-  section:              { paddingHorizontal: 20, paddingVertical: 15 },
-  sectionTitle:         { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
-  sectionSubtitle:      { fontSize: 14, marginBottom: 15 },
-
-  dailyCard:            { borderRadius: 12, padding: 15, elevation: 2, shadowColor: '#000', shadowOffset: { width:0, height:2 }, shadowOpacity:0.1, shadowRadius:4 },
-  completedCard:        { backgroundColor: '#f8f9fa' },
-  challengeHeader:      { flexDirection: 'row', alignItems: 'center' },
-  challengeInfo:        { flex:1, marginLeft:15 },
-  challengeTitle:       { fontSize:16, fontWeight:'bold' },
-  challengeDescription: { fontSize:14, marginTop:2 },
-  tokenBadge:           { fontSize:14, fontWeight:'bold', marginTop:4 },
-
-  achievementCard:      { borderRadius:12, padding:15, marginBottom:10, elevation:2, shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.1, shadowRadius:4 },
-  achievementHeader:    { flexDirection:'row', alignItems:'center', marginBottom:10 },
-  achievementInfo:      { flex:1, marginLeft:15 },
-  achievementTitle:     { fontSize:16, fontWeight:'bold' },
-  achievementDescription:{ fontSize:14, marginTop:2 },
-  achievementReward:    { fontSize:12, fontWeight:'bold' },
-  progressContainer:    { flexDirection:'row', alignItems:'center' },
-  progressBar:          { flex:1, height:6, backgroundColor:'#e9ecef', borderRadius:3, marginRight:10 },
-  progressFill:         { height:'100%', borderRadius:3 },
-  progressText:         { fontSize:12, minWidth:35 },
-
-  settingRow:           { flexDirection:'row', alignItems:'center', borderRadius:10, padding:15, marginBottom:10, elevation:1, shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.1, shadowRadius:2 },
-  settingInfo:          { flex:1 },
-  settingTitle:         { fontSize:16, fontWeight:'bold' },
-  settingDescription:   { fontSize:14, marginTop:2 },
-
-  difficultyCard:       { borderRadius:10, padding:15, marginBottom:10, elevation:1, shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.1, shadowRadius:2, flexDirection:'row', alignItems:'center' },
-  difficultyInfo:       { flex:1 },
-  difficultyName:       { fontSize:16, fontWeight:'bold' },
-  difficultyDescription:{ fontSize:14, marginTop:2 },
-
-  dangerBtn:            { flexDirection:'row', alignItems:'center', justifyContent:'center', borderRadius:10, padding:15, borderWidth:1 },
-  dangerText:           { fontSize:16, marginLeft:8, fontWeight:'600', color:'#dc3545' },
-
-  footer:               { height:20 }
+  container: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1 },
+  headerTitle: { fontSize: 28, fontWeight: 'bold' },
+  section: { paddingHorizontal: 20, paddingVertical: 15 },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
+  sectionSubtitle: { fontSize: 14, marginBottom: 15 },
+  dailyCard: { borderRadius: 12, padding: 15, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  completedCard: { backgroundColor: '#f8f9fa' },
+  challengeHeader: { flexDirection: 'row', alignItems: 'center' },
+  challengeInfo: { flex: 1, marginLeft: 15 },
+  challengeTitle: { fontSize: 16, fontWeight: 'bold' },
+  challengeDescription: { fontSize: 14, marginTop: 2 },
+  tokenBadge: { fontSize: 14, fontWeight: 'bold', marginTop: 4 },
+  achievementCard: { borderRadius: 12, padding: 15, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  achievementHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  achievementInfo: { flex: 1, marginLeft: 15 },
+  achievementTitle: { fontSize: 16, fontWeight: 'bold' },
+  achievementDescription: { fontSize: 14, marginTop: 2 },
+  achievementReward: { fontSize: 12, fontWeight: 'bold' },
+  progressContainer: { flexDirection: 'row', alignItems: 'center' },
+  progressBar: { flex: 1, height: 6, backgroundColor: '#e9ecef', borderRadius: 3, marginRight: 10 },
+  progressFill: { height: '100%', borderRadius: 3 },
+  progressText: { fontSize: 12, minWidth: 35 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 15, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  settingInfo: { flex: 1 },
+  settingTitle: { fontSize: 16, fontWeight: 'bold' },
+  settingDescription: { fontSize: 14, marginTop: 2 },
+  difficultyCard: { borderRadius: 10, padding: 15, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, flexDirection: 'row', alignItems: 'center' },
+  difficultyInfo: { flex: 1 },
+  difficultyName: { fontSize: 16, fontWeight: 'bold' },
+  difficultyDescription: { fontSize: 14, marginTop: 2 },
+  dangerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 10, padding: 15, borderWidth: 1 },
+  dangerText: { fontSize: 16, marginLeft: 8, fontWeight: '600', color: '#dc3545' },
+  footer: { height: 20 }
 })

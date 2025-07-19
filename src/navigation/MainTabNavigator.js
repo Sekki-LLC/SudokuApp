@@ -5,11 +5,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import screens
-import HomeScreen from '../screens/Home/HomeScreen';
-import StoreScreen from '../screens/Store/StoreScreen';
-import MyPuzzlesScreen from '../screens/MyPuzzles/MyPuzzlesScreen';
-import StatsScreen from '../screens/Stats/StatsScreen';
-import SettingsScreen from '../screens/Settings/SettingsScreen';
+import HomeScreen        from '../screens/Home/HomeScreen';
+import StoreScreen       from '../screens/Store/StoreScreen';
+import MyPuzzlesScreen   from '../screens/MyPuzzles/MyPuzzlesScreen';
+import StatsScreen       from '../screens/Stats/StatsScreen';
+import SettingsScreen    from '../screens/Settings/SettingsScreen';
 
 import { COLORS } from '../constants/colors';
 
@@ -18,23 +18,15 @@ const Tab = createBottomTabNavigator();
 export default function MainTabNavigator() {
   return (
     <Tab.Navigator
-      initialRouteName="Home"                     // <— Set Home as the default tab
+      initialRouteName="Home"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-
-          if (route.name === 'Stats') {
-            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
-          } else if (route.name === 'My Puzzles') {
-            iconName = focused ? 'grid' : 'grid-outline';
-          } else if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Settings') {
-            iconName = focused ? 'settings' : 'settings-outline';
-          } else if (route.name === 'Store') {
-            iconName = focused ? 'storefront' : 'storefront-outline';
-          }
-
+          if (route.name === 'Stats')       iconName = focused ? 'stats-chart'         : 'stats-chart-outline';
+          else if (route.name === 'My Puzzles') iconName = focused ? 'grid'              : 'grid-outline';
+          else if (route.name === 'Home')       iconName = focused ? 'home'              : 'home-outline';
+          else if (route.name === 'Settings')   iconName = focused ? 'settings'          : 'settings-outline';
+          else if (route.name === 'Store')      iconName = focused ? 'storefront'        : 'storefront-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor:   COLORS.interactive,
@@ -59,7 +51,11 @@ export default function MainTabNavigator() {
       <Tab.Screen 
         name="Home" 
         component={HomeScreen}
-        options={{ title: 'Home' }}
+        options={{
+          title: 'Home',
+          // hide the bottom bar on Home
+          tabBarStyle: { display: 'none' }
+        }}
       />
       <Tab.Screen 
         name="Settings" 

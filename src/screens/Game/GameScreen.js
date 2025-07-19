@@ -11,10 +11,9 @@ import {
   Dimensions,
   TouchableOpacity
 } from 'react-native'
-import AdBanner from '../../components/AdBanner';
+import { showInterstitial } from '../../components/InterstitialAd'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import * as Haptics from 'expo-haptics'
 
 import Board from '../../components/sudoku/SudokuBoard'
 import NumberPad from '../../components/sudoku/NumberPad'
@@ -25,21 +24,36 @@ import { generateSudokuPuzzle } from '../../utils/SudokuGenerator'
 import { findConflicts, isBoardSolved } from '../../utils/SudokuValidator'
 import { useGameSettings } from '../../contexts/GameSettingsContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useFeedback } from '../../contexts/FeedbackContext'
 import { saveGame, loadGame } from '../../services/GameStorageService'
 import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
 
-const { width }      = Dimensions.get('window')
-const boardSize      = width * 0.9
+const { width } = Dimensions.get('window')
+const boardSize = width * 0.9
 const numberPadWidth = width * 0.85
 
 export default function GameScreen({ route, navigation }) {
   const { selectedDifficulty, dailyChallengeId, setDailyChallengeId } = useGameSettings()
-  const { colors }                = useTheme()
-  const isDaily                   = route.params?.isDailyChallenge === true
+  const { colors } = useTheme()
+  const {
+    cellSelectFeedback,
+    numberPlaceFeedback,
+    numberRemoveFeedback,
+    errorFeedback,
+    successFeedback,
+    gameCompleteFeedback,
+    buttonPressFeedback,
+    hintUsedFeedback,
+    undoFeedback,
+    pauseFeedback,
+    resumeFeedback
+  } = useFeedback()
+  
+  const isDaily = route.params?.isDailyChallenge === true
 
   // Game state
-  const [gameId, setGameId]             = useState(null)
+  const [gameId, setGameId] = useState(null)
   const [initialBoard, setInitialBoard] = useState([])
   const [currentBoard, setCurrentBoard] = useState([])
   const [solutionBoard, setSolutionBoard] = useState([])
@@ -64,7 +78,6 @@ export default function GameScreen({ route, navigation }) {
 
   // Initialize or resume puzzle
   const initializeGame = useCallback(async () => {
-    // 1) Resume daily if flagged
     if (isDaily && dailyChallengeId) {
       const loaded = await loadGame(dailyChallengeId)
       if (loaded) {
@@ -77,12 +90,11 @@ export default function GameScreen({ route, navigation }) {
         setHistory(loaded.history || [])
         setHistoryPointer(loaded.historyPointer ?? -1)
         setIsGameActive(true)
+        resumeFeedback()
         return
       }
-      // otherwise fall through and generate fresh daily
     }
 
-    // 2) New daily or brand-new
     const newId = isDaily
       ? (dailyChallengeId || uuidv4())
       : uuidv4()
@@ -104,17 +116,20 @@ export default function GameScreen({ route, navigation }) {
     setHistory([puzzle.map(r => [...r])])
     setHistoryPointer(0)
     setIsGameActive(true)
+    successFeedback()
   }, [
     isDaily,
     dailyChallengeId,
     selectedDifficulty,
-    setDailyChallengeId
+    setDailyChallengeId,
+    resumeFeedback,
+    successFeedback
   ])
 
-  // Filled cells count
+  // Count filled cells
   useEffect(() => {
     let cnt = 0
-    currentBoard.forEach(r => r.forEach(v => v && cnt++))
+    currentBoard.forEach(row => row.forEach(v => v && cnt++))
     setFilledCount(cnt)
   }, [currentBoard])
 
@@ -127,7 +142,12 @@ export default function GameScreen({ route, navigation }) {
     }
   }, [initializeGame]))
 
-  // Ticking timer
+  // Show interstitial on focus
+  useFocusEffect(useCallback(() => {
+    showInterstitial()
+  }, []))
+
+  // Timer tick
   useEffect(() => {
     if (isGameActive) {
       timerRef.current = setInterval(() => setTimeElapsed(t => t + 1), 1000)
@@ -137,7 +157,7 @@ export default function GameScreen({ route, navigation }) {
     return () => clearInterval(timerRef.current)
   }, [isGameActive])
 
-  // Auto‐save on any change
+  // Auto‐save
   useEffect(() => {
     if (gameId && currentBoard.length === 9) {
       saveGame({
@@ -167,22 +187,32 @@ export default function GameScreen({ route, navigation }) {
   // Pause/resume on background
   useEffect(() => {
     const sub = AppState.addEventListener('change', next => {
-      setIsGameActive(next === 'active')
+      if (next === 'active') {
+        setIsGameActive(true)
+        resumeFeedback()
+      } else {
+        setIsGameActive(false)
+        pauseFeedback()
+      }
       appState.current = next
     })
     return () => sub.remove()
-  }, [])
+  }, [pauseFeedback, resumeFeedback])
 
   // Conflict & win detection
   useEffect(() => {
     if (currentBoard.length === 9) {
       const conf = findConflicts(currentBoard)
       setConflictingCells(conf)
+
       if (conf.size > 0) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+        errorFeedback()
+        return
       }
-      if (conf.size === 0 && isBoardSolved(currentBoard)) {
+
+      if (isBoardSolved(currentBoard)) {
         setIsGameActive(false)
+        gameCompleteFeedback()
         Alert.alert(
           'Congratulations!',
           `Solved in ${formatTime(timeElapsed)}!`,
@@ -193,9 +223,9 @@ export default function GameScreen({ route, navigation }) {
         )
       }
     }
-  }, [currentBoard, timeElapsed, initializeGame])
+  }, [currentBoard, timeElapsed])
 
-  // Board/history updater
+  // History management
   const updateBoard = newBoard => {
     const slice = history.slice(0, historyPointer + 1)
     slice.push(newBoard)
@@ -212,33 +242,37 @@ export default function GameScreen({ route, navigation }) {
       const nb = currentBoard.map(r => [...r])
       nb[row][col] = num
       updateBoard(nb)
+      numberPlaceFeedback()
     }
   }
+
   const onClear = () => {
     if (!selectedCell) return
     const { row, col } = selectedCell
-    if (initialBoard[row][col] === 0) {
+    if (initialBoard[row][col] === 0 && currentBoard[row][col] !== 0) {
       const nb = currentBoard.map(r => [...r])
       nb[row][col] = 0
       updateBoard(nb)
+      numberRemoveFeedback()
     }
   }
 
   // Solve (disabled on daily)
   const onSolve = () => {
     if (isDaily) return
+    buttonPressFeedback()
     Alert.alert(
       'Solve Puzzle?',
       'This will fill in all answers.',
       [
         { text: 'Cancel', style: 'cancel', onPress: () => setIsGameActive(true) },
         {
-          text: 'Solve',
-          onPress: () => {
+          text: 'Solve', onPress: () => {
             setCurrentBoard(solutionBoard.map(r => [...r]))
             setSelectedCell(null)
             setHistory([solutionBoard.map(r => [...r])])
             setHistoryPointer(0)
+            gameCompleteFeedback()
           }
         }
       ]
@@ -246,51 +280,76 @@ export default function GameScreen({ route, navigation }) {
   }
 
   // Hint / undo / redo / select
-  const onHint   = () => {
+  const onHint = () => {
     if (hintsRemaining <= 0) {
-      return Alert.alert('No Hints Left','Visit the store to get more!')
+      errorFeedback()
+      return Alert.alert('No Hints Left', 'Visit the store to get more!')
     }
     let empty = null
-    for (let r=0; r<9 && !empty; r++){
-      for (let c=0; c<9; c++){
-        if (currentBoard[r][c] === 0){
+    for (let r = 0; r < 9 && !empty; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (currentBoard[r][c] === 0) {
           empty = { row: r, col: c }
           break
         }
       }
     }
-    if (empty){
+    if (empty) {
       const { row, col } = empty
       const val = solutionBoard[row][col]
-      const nb  = currentBoard.map(r => [...r])
+      const nb = currentBoard.map(r => [...r])
       nb[row][col] = val
       updateBoard(nb)
       setHintsRemaining(h => h - 1)
       setSelectedCell(null)
-      Alert.alert('Hint Used',`Cell (${row+1},${col+1}) = ${val}`)
+      hintUsedFeedback()
+      Alert.alert('Hint Used', `Cell (${row+1},${col+1}) = ${val}`)
     } else {
-      Alert.alert('Done','No empty cells remain.')
+      successFeedback()
+      Alert.alert('Done', 'No empty cells remain.')
     }
   }
-  const onUndo   = () => {
+
+  const onUndo = () => {
     if (historyPointer > 0) {
       const p = historyPointer - 1
       setHistoryPointer(p)
       setCurrentBoard(history[p])
+      undoFeedback()
     }
   }
-  const onRedo   = () => {
+
+  const onRedo = () => {
     if (historyPointer < history.length - 1) {
       const p = historyPointer + 1
       setHistoryPointer(p)
       setCurrentBoard(history[p])
+      undoFeedback()
     }
   }
-  const onSelect = (r,c) => {
-    if (initialBoard[r][c] === 0) setSelectedCell({ row: r, col: c })
-    else setSelectedCell(null)
+
+  const onSelect = (r, c) => {
+    if (initialBoard[r][c] === 0) {
+      setSelectedCell({ row: r, col: c })
+      cellSelectFeedback()
+    } else {
+      setSelectedCell(null)
+      errorFeedback()
+    }
   }
-  const onBack   = () => navigation.navigate('MainTabs',{ screen: 'Home' })
+
+  // Back button with interstitial
+  const onBack = () => {
+    buttonPressFeedback()
+    showInterstitial()
+    navigation.navigate('MainTabs', { screen: 'Home' })
+  }
+
+  // Store button handler
+  const onStore = () => {
+    buttonPressFeedback()
+    navigation.navigate('MainTabs', { screen: 'Store' })
+  }
 
   // Loading placeholder
   if (currentBoard.length < 9) {
@@ -301,25 +360,36 @@ export default function GameScreen({ route, navigation }) {
     )
   }
 
-  // -- RENDER --
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+      <View style={styles.headerContainer}> 
+        <TouchableOpacity onPress={onBack} style={styles.headerButton}>
           <Ionicons name="chevron-back" size={24} color={colors.accent}/>
-          <Text style={[styles.backButtonText,{ color: colors.accent }]}>Home</Text>
+          <Text style={[styles.headerButtonText, { color: colors.accent }]}>Home</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Sudoku</Text>
+        <TouchableOpacity onPress={onStore} style={styles.headerButton}>
+          <Text style={[styles.headerButtonText, { color: colors.accent }]}>
+            Store
+          </Text>
+          <Ionicons name="chevron-forward" size={24} color={colors.accent}/>
+        </TouchableOpacity>
       </View>
 
       {/* Difficulty Label */}
-      <Text style={[styles.title, { color: colors.text }]}>{selectedDifficulty.name}</Text>
+      <Text style={[styles.title, { color: colors.text }]}>
+        {selectedDifficulty.name}
+      </Text>
 
       {/* Timer & Progress */}
       <View style={styles.statsContainer}>
-        <Text style={[styles.timerText, { color: colors.text }]}>{formatTime(timeElapsed)}</Text>
-        <Text style={[styles.progressText, { color: colors.textSecondary }]}>{filledCount} / 81</Text>
+        <Text style={[styles.timerText, { color: colors.text }]}>
+          {formatTime(timeElapsed)}
+        </Text>
+        <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+          {filledCount} / 81
+        </Text>
       </View>
 
       {/* Board */}
@@ -342,10 +412,19 @@ export default function GameScreen({ route, navigation }) {
       {/* Bottom Buttons */}
       <View style={styles.bottomButtonsContainer}>
         <View style={styles.buttonWrapper}>
-          <Button title="Solve" onPress={onSolve} color={colors.accent} disabled={isDaily}/>
+          <Button
+            title="Solve"
+            onPress={onSolve}
+            color={colors.accent}
+            disabled={isDaily}
+          />
         </View>
         <View style={styles.buttonWrapper}>
-          <HintButton onPress={onHint} disabled={hintsRemaining<=0} color={colors.accent}/>
+          <HintButton
+            onPress={onHint}
+            disabled={hintsRemaining <= 0}
+            color={colors.accent}
+          />
         </View>
       </View>
 
@@ -353,28 +432,32 @@ export default function GameScreen({ route, navigation }) {
       <UndoRedoControls
         onUndo={onUndo}
         onRedo={onRedo}
-        canUndo={historyPointer>0}
-        canRedo={historyPointer<history.length-1}
+        canUndo={historyPointer > 0}
+        canRedo={historyPointer < history.length - 1}
         color={colors.accent}
       />
-            {/* Ad Banner */}
-//       <AdBanner adUnitID={colors.adUnitID /* replace with your real unit in production */} />
-
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container:            { flex:1, alignItems:'center', paddingHorizontal:5, paddingTop:70, paddingBottom:30 },
-  headerContainer:      { flexDirection:'row', alignItems:'center', width:'100%', paddingHorizontal:10, marginBottom:10 },
-  backButton:           { flexDirection:'row', alignItems:'center', padding:5 },
-  backButtonText:       { fontSize:16, marginLeft:5 },
-  headerTitle:          { flex:1, textAlign:'center', fontSize:18, fontWeight:'bold', marginRight:60 },
-  loadingText:          { fontSize:18, marginTop:50 },
-  title:                { fontSize:18, fontWeight:'bold', marginBottom:5 },
-  statsContainer:       { flexDirection:'row', justifyContent:'space-between', width:'90%', marginBottom:15 },
-  timerText:            { fontSize:18, fontWeight:'600' },
-  progressText:         { fontSize:15 },
-  bottomButtonsContainer:{ flexDirection:'row', justifyContent:'space-between', marginTop:15, marginBottom:15, width:'95%' },
-  buttonWrapper:        { flex:1, marginHorizontal:5 }
+  container: { flex: 1, alignItems: 'center', paddingHorizontal: 5, paddingTop: 70, paddingBottom: 30 },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 10,
+    marginBottom: 10
+  },
+  headerButton: { flexDirection: 'row', alignItems: 'center', padding: 5 },
+  headerButtonText: { fontSize: 16, marginHorizontal: 4 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  loadingText: { fontSize: 18, marginTop: 50 },
+  title: { fontSize: 18, fontWeight: 'bold', marginBottom: 5 },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', width: '90%', marginBottom: 15 },
+  timerText: { fontSize: 18, fontWeight: '600' },
+  progressText: { fontSize: 15 },
+  bottomButtonsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15, marginBottom: 15, width: '95%' },
+  buttonWrapper: { flex: 1, marginHorizontal: 5 }
 })
