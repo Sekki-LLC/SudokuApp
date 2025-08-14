@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
-  Dimensions
+  Dimensions,
+  Linking
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -164,6 +165,34 @@ export default function SettingsScreen({ navigation }) {
     if (value) Haptics.selectionAsync()
   }
 
+  // Legal document handlers
+  const openPrivacyPolicy = () => {
+    Linking.openURL('https://sekki.io/privacy-policy' )
+      .catch(err => {
+        console.warn('Failed to open privacy policy:', err)
+        Alert.alert('Error', 'Could not open Privacy Policy. Please visit sekki.io/privacy-policy')
+      })
+    buttonPressFeedback()
+  }
+
+  const openTermsOfService = () => {
+    Linking.openURL('https://sekki.io/terms-of-service' )
+      .catch(err => {
+        console.warn('Failed to open terms of service:', err)
+        Alert.alert('Error', 'Could not open Terms of Service. Please visit sekki.io/terms-of-service')
+      })
+    buttonPressFeedback()
+  }
+
+  const openSupport = () => {
+    Linking.openURL('mailto:hello@sekki.io?subject=GridGenius Sudoku Support')
+      .catch(err => {
+        console.warn('Failed to open email:', err)
+        Alert.alert('Support', 'Please email us at hello@sekki.io for support.')
+      })
+    buttonPressFeedback()
+  }
+
   const renderAchievement = ach => (
     <View key={ach.id} style={[styles.achievementCard, { backgroundColor: colors.white }]}>
       <View style={styles.achievementHeader}>
@@ -211,6 +240,17 @@ export default function SettingsScreen({ navigation }) {
       {selectedDifficulty.name === diff.name && (
         <Ionicons name="checkmark-circle" size={24} color={colors.accent} />
       )}
+    </TouchableOpacity>
+  )
+
+  const renderLegalButton = (title, icon, onPress) => (
+    <TouchableOpacity
+      style={[styles.legalButton, { backgroundColor: colors.white }]}
+      onPress={onPress}
+    >
+      <Ionicons name={icon} size={20} color={colors.textSecondary} />
+      <Text style={[styles.legalButtonText, { color: colors.text }]}>{title}</Text>
+      <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
     </TouchableOpacity>
   )
 
@@ -326,6 +366,24 @@ export default function SettingsScreen({ navigation }) {
           {difficulties.map(renderDifficulty)}
         </View>
 
+        {/* Legal & Support Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Legal & Support</Text>
+          {renderLegalButton('Privacy Policy', 'shield-checkmark-outline', openPrivacyPolicy)}
+          {renderLegalButton('Terms of Service', 'document-text-outline', openTermsOfService)}
+          {renderLegalButton('Contact Support', 'mail-outline', openSupport)}
+        </View>
+
+        {/* App Information */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>App Information</Text>
+          <View style={[styles.infoCard, { backgroundColor: colors.white }]}>
+            <Text style={[styles.appName, { color: colors.text }]}>GridGenius Sudoku</Text>
+            <Text style={[styles.appVersion, { color: colors.textSecondary }]}>Version 1.2.0</Text>
+            <Text style={[styles.appDeveloper, { color: colors.textSecondary }]}>Developed by Sekki LLC</Text>
+          </View>
+        </View>
+
         {/* Data Management */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.dangerBtn} onPress={handleClearAll}>
@@ -372,7 +430,47 @@ const styles = StyleSheet.create({
   difficultyInfo: { flex: 1 },
   difficultyName: { fontSize: 16, fontWeight: 'bold' },
   difficultyDescription: { fontSize: 14, marginTop: 2 },
-  dangerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 10, padding: 15, borderWidth: 1 },
+  legalButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    borderRadius: 10, 
+    padding: 15, 
+    marginBottom: 10, 
+    elevation: 1, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 2 
+  },
+  legalButtonText: { 
+    flex: 1, 
+    fontSize: 16, 
+    marginLeft: 12, 
+    fontWeight: '500' 
+  },
+  infoCard: { 
+    borderRadius: 10, 
+    padding: 15, 
+    elevation: 1, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 2,
+    alignItems: 'center'
+  },
+  appName: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    marginBottom: 4 
+  },
+  appVersion: { 
+    fontSize: 14, 
+    marginBottom: 2 
+  },
+  appDeveloper: { 
+    fontSize: 14 
+  },
+  dangerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 10, padding: 15, borderWidth: 1, borderColor: '#dc3545' },
   dangerText: { fontSize: 16, marginLeft: 8, fontWeight: '600', color: '#dc3545' },
   footer: { height: 20 }
 })

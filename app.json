@@ -57,7 +57,20 @@
         "image": "./assets/splash.png",
         "resizeMode": "contain",
         "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5f565d19-71ba-4a49-af09-990b3aa33a19"
       }
     }
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-7765897544369826~3669005398",
+    "ios_app_id": "ca-app-pub-7765897544369826~3669005398"
   }
 }
