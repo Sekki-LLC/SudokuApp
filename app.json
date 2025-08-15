@@ -14,8 +14,8 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-7765897544369826~3669005398",
-          "iosAppId": "ca-app-pub-7765897544369826~3669005398"
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ]
     ],
@@ -42,8 +42,9 @@
         "CFBundleDisplayName": "GridGenius Sudoku",
         "CFBundleShortVersionString": "1.2.0",
         "CFBundleVersion": "2",
-        "GADApplicationIdentifier": "ca-app-pub-7765897544369826~3669005398",
-        "UIStatusBarHidden": true
+        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511",
+        "UIStatusBarHidden": true,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -70,7 +71,7 @@
     }
   },
   "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-7765897544369826~3669005398",
-    "ios_app_id": "ca-app-pub-7765897544369826~3669005398"
+    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
   }
 }
