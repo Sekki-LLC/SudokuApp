@@ -22,7 +22,14 @@ import * as Haptics from 'expo-haptics'
 import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
 import { clearAllGames } from '../../services/GameStorageService'
-import { loadStats } from '../../services/StatsService'  // new
+import { loadStats } from '../../services/StatsService'
+import { 
+  getTodaysDailyChallenge, 
+  isDailyChallengeAvailable, 
+  getDailyStreak,
+  getTimeUntilNextChallenge 
+} from '../../services/DailyChallengeService'
+
 // static catalog of your achievements
 const ACHIEVEMENT_CATALOG = [
   { id: 'first_win', title: 'First Victory', description: 'Complete your first puzzle', goal: 1, reward: '10 tokens' },
@@ -52,18 +59,41 @@ export default function SettingsScreen({ navigation }) {
 
   const [dailyGameId, setDailyGameId] = useState(null)
   const [dailyCompleted, setDailyCompleted] = useState(false)
-  const [achievements, setAchievements] = useState([])  // dynamic
+  const [dailyStreak, setDailyStreak] = useState(0)
+  const [timeUntilNext, setTimeUntilNext] = useState({ hours: 0, minutes: 0, seconds: 0 })
+  const [dailyChallenge, setDailyChallenge] = useState(null)
+  const [achievements, setAchievements] = useState([])
 
-  // load daily IDs
+  // Load daily challenge data and start countdown timer
   useEffect(() => {
-    AsyncStorage.multiGet([DAILY_GAME_KEY, DAILY_DONE_KEY])
-      .then(entries => {
-        const savedId = entries[0][1]
-        const savedDone = entries[1][1]
-        if (savedId) setDailyGameId(savedId)
-        if (savedDone === 'true') setDailyCompleted(true)
-      })
-      .catch(console.warn)
+    async function loadDailyData() {
+      try {
+        const [challenge, available, streak] = await Promise.all([
+          getTodaysDailyChallenge(),
+          isDailyChallengeAvailable(),
+          getDailyStreak()
+        ])
+        
+        setDailyChallenge(challenge)
+        setDailyCompleted(!available)
+        setDailyStreak(streak)
+        
+        if (challenge && !challenge.completed) {
+          setDailyGameId(challenge.id)
+        }
+      } catch (error) {
+        console.error('Error loading daily challenge data:', error)
+      }
+    }
+    
+    loadDailyData()
+    
+    // Update countdown timer every second
+    const timer = setInterval(() => {
+      setTimeUntilNext(getTimeUntilNextChallenge())
+    }, 1000)
+    
+    return () => clearInterval(timer)
   }, [])
 
   // compute achievements from persisted stats
@@ -103,17 +133,19 @@ export default function SettingsScreen({ navigation }) {
     if (dailyCompleted) {
       return Alert.alert('Already Completed', 'Come back tomorrow for a new challenge!')
     }
-    let id = dailyGameId
-    if (!id) {
-      id = uuidv4()
-      setDailyGameId(id)
-      await AsyncStorage.setItem(DAILY_GAME_KEY, id)
+    
+    try {
+      const challenge = await getTodaysDailyChallenge()
+      navigation.navigate('Game', {
+        isDailyChallenge: true,
+        gameId: challenge.id,
+        dailyChallengeData: challenge
+      })
+      buttonPressFeedback()
+    } catch (error) {
+      console.error('Error starting daily challenge:', error)
+      Alert.alert('Error', 'Could not start daily challenge. Please try again.')
     }
-    navigation.navigate('Game', {
-      isDailyChallenge: true,
-      gameId: id
-    })
-    buttonPressFeedback()
   }
 
   const handleClearAll = () => {
@@ -288,12 +320,17 @@ export default function SettingsScreen({ navigation }) {
                 </Text>
                 <Text style={[styles.challengeDescription, { color: colors.textSecondary }]}>
                   {dailyCompleted
-                    ? 'Come back tomorrow for a new one'
-                    : (dailyGameId ? 'Tap to continue today\'s puzzle' : 'Complete today\'s puzzle for')}
+                    ? `${dailyStreak} day streak! Next in ${timeUntilNext.hours}h ${timeUntilNext.minutes}m`
+                    : (dailyChallenge ? `${dailyChallenge.difficulty.name} difficulty` : 'Complete today\'s puzzle for rewards')}
                 </Text>
                 {!dailyCompleted && (
                   <Text style={[styles.tokenBadge, { color: '#fd6b02' }]}>
-                    +30 tokens
+                    +50+ tokens
+                  </Text>
+                )}
+                {dailyStreak > 0 && (
+                  <Text style={[styles.streakBadge, { color: '#28a745' }]}>
+                    🔥 {dailyStreak} day streak
                   </Text>
                 )}
               </View>
@@ -406,27 +443,28 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
   sectionSubtitle: { fontSize: 14, marginBottom: 15 },
   dailyCard: { borderRadius: 12, padding: 15, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  completedCard: { backgroundColor: '#f8f9fa' },
+  completedCard: { opacity: 0.7 },
   challengeHeader: { flexDirection: 'row', alignItems: 'center' },
   challengeInfo: { flex: 1, marginLeft: 15 },
-  challengeTitle: { fontSize: 16, fontWeight: 'bold' },
+  challengeTitle: { fontSize: 18, fontWeight: 'bold' },
   challengeDescription: { fontSize: 14, marginTop: 2 },
   tokenBadge: { fontSize: 14, fontWeight: 'bold', marginTop: 4 },
-  achievementCard: { borderRadius: 12, padding: 15, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  streakBadge: { fontSize: 14, fontWeight: 'bold', marginTop: 2 },
+  achievementCard: { borderRadius: 10, padding: 15, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   achievementHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  achievementInfo: { flex: 1, marginLeft: 15 },
+  achievementInfo: { flex: 1, marginLeft: 12 },
   achievementTitle: { fontSize: 16, fontWeight: 'bold' },
   achievementDescription: { fontSize: 14, marginTop: 2 },
-  achievementReward: { fontSize: 12, fontWeight: 'bold' },
+  achievementReward: { fontSize: 14, fontWeight: 'bold' },
   progressContainer: { flexDirection: 'row', alignItems: 'center' },
-  progressBar: { flex: 1, height: 6, backgroundColor: '#e9ecef', borderRadius: 3, marginRight: 10 },
+  progressBar: { flex: 1, height: 6, backgroundColor: '#e0e0e0', borderRadius: 3, marginRight: 10 },
   progressFill: { height: '100%', borderRadius: 3 },
-  progressText: { fontSize: 12, minWidth: 35 },
+  progressText: { fontSize: 12, fontWeight: 'bold', minWidth: 35, textAlign: 'right' },
   settingRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 15, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   settingInfo: { flex: 1 },
   settingTitle: { fontSize: 16, fontWeight: 'bold' },
   settingDescription: { fontSize: 14, marginTop: 2 },
-  difficultyCard: { borderRadius: 10, padding: 15, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, flexDirection: 'row', alignItems: 'center' },
+  difficultyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 15, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   difficultyInfo: { flex: 1 },
   difficultyName: { fontSize: 16, fontWeight: 'bold' },
   difficultyDescription: { fontSize: 14, marginTop: 2 },

@@ -23,7 +23,9 @@ import UndoRedoControls from '../../components/sudoku/UndoRedoControls'
 import { generateSudokuPuzzle } from '../../utils/SudokuGenerator'
 import { findConflicts, isBoardSolved } from '../../utils/SudokuValidator'
 import { useGameSettings } from '../../contexts/GameSettingsContext'
+import { useUser } from '../../contexts/UserContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { completeDailyChallenge, calculateDailyChallengeReward, getDailyStreak } from '../../services/DailyChallengeService'
 import { useFeedback } from '../../contexts/FeedbackContext'
 import { saveGame, loadGame } from '../../services/GameStorageService'
 import 'react-native-get-random-values'
@@ -51,6 +53,7 @@ export default function GameScreen({ route, navigation }) {
   } = useFeedback()
   
   const isDaily = route.params?.isDailyChallenge === true
+  const dailyChallengeData = route.params?.dailyChallengeData
 
   // Game state
   const [gameId, setGameId] = useState(null)
@@ -62,6 +65,7 @@ export default function GameScreen({ route, navigation }) {
   const [hintsRemaining, setHintsRemaining] = useState(3)
   const [timeElapsed, setTimeElapsed] = useState(0)
   const [isGameActive, setIsGameActive] = useState(false)
+  const [moveCount, setMoveCount] = useState(0)
   const [history, setHistory] = useState([])
   const [historyPointer, setHistoryPointer] = useState(-1)
   const [filledCount, setFilledCount] = useState(0)
@@ -78,6 +82,24 @@ export default function GameScreen({ route, navigation }) {
 
   // Initialize or resume puzzle
   const initializeGame = useCallback(async () => {
+    if (isDaily && dailyChallengeData) {
+      // Use daily challenge data
+      const puzzle = dailyChallengeData.puzzle
+      const solution = dailyChallengeData.solution
+      
+      setGameId(dailyChallengeData.id)
+      setInitialBoard(puzzle)
+      setCurrentBoard(puzzle.map(r => [...r]))
+      setSolutionBoard(solution)
+      setHintsRemaining(3)
+      setTimeElapsed(0)
+      setMoveCount(0)
+      setHistory([puzzle.map(r => [...r])])
+      setHistoryPointer(0)
+      setIsGameActive(true)
+      return
+    }
+
     if (isDaily && dailyChallengeId) {
       const loaded = await loadGame(dailyChallengeId)
       if (loaded) {
@@ -87,6 +109,7 @@ export default function GameScreen({ route, navigation }) {
         setSolutionBoard(loaded.solutionBoard)
         setHintsRemaining(loaded.hintsRemaining ?? 3)
         setTimeElapsed(loaded.timeElapsed ?? 0)
+        setMoveCount(loaded.moveCount ?? 0)
         setHistory(loaded.history || [])
         setHistoryPointer(loaded.historyPointer ?? -1)
         setIsGameActive(true)
@@ -113,6 +136,7 @@ export default function GameScreen({ route, navigation }) {
     setSolutionBoard(solution)
     setHintsRemaining(3)
     setTimeElapsed(0)
+    setMoveCount(0)
     setHistory([puzzle.map(r => [...r])])
     setHistoryPointer(0)
     setIsGameActive(true)
@@ -213,17 +237,66 @@ export default function GameScreen({ route, navigation }) {
       if (isBoardSolved(currentBoard)) {
         setIsGameActive(false)
         gameCompleteFeedback()
-        Alert.alert(
-          'Congratulations!',
-          `Solved in ${formatTime(timeElapsed)}!`,
-          [
-            { text: 'New Game', onPress: initializeGame },
-            { text: 'OK' }
-          ]
-        )
+        
+        if (isDaily && dailyChallengeData) {
+          // Handle daily challenge completion
+          handleDailyChallengeCompletion(currentBoard)
+        } else {
+          // Regular game completion
+          Alert.alert(
+            'Congratulations!',
+            `Solved in ${formatTime(timeElapsed)}!`,
+            [
+              { text: 'New Game', onPress: initializeGame },
+              { text: 'OK' }
+            ]
+          )
+        }
       }
     }
   }, [currentBoard, timeElapsed])
+
+  // Handle daily challenge completion
+  const handleDailyChallengeCompletion = async (finalBoard) => {
+    try {
+      const { addTokens } = useUser()
+      
+      // Complete the daily challenge
+      await completeDailyChallenge(dailyChallengeData, finalBoard, moveCount, timeElapsed * 1000)
+      
+      // Calculate rewards
+      const rewards = calculateDailyChallengeReward(
+        dailyChallengeData.difficulty,
+        timeElapsed * 1000,
+        moveCount,
+        await getDailyStreak()
+      )
+      
+      // Add tokens to user account
+      addTokens(rewards.totalReward)
+      
+      // Show completion dialog with rewards
+      Alert.alert(
+        '🎉 Daily Challenge Complete!',
+        `Solved in ${formatTime(timeElapsed)}!\n\n` +
+        `🏆 Base Reward: ${rewards.baseReward} tokens\n` +
+        `⚡ Time Bonus: ${rewards.timeBonus} tokens\n` +
+        `🎯 Efficiency Bonus: ${rewards.efficiencyBonus} tokens\n` +
+        `🔥 Streak Bonus: ${rewards.streakBonus} tokens\n\n` +
+        `💰 Total Earned: ${rewards.totalReward} tokens!`,
+        [
+          { text: 'Awesome!', onPress: () => navigation.goBack() }
+        ]
+      )
+    } catch (error) {
+      console.error('Error completing daily challenge:', error)
+      Alert.alert(
+        'Congratulations!',
+        `Daily challenge solved in ${formatTime(timeElapsed)}!`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      )
+    }
+  }
 
   // History management
   const updateBoard = newBoard => {
@@ -242,6 +315,7 @@ export default function GameScreen({ route, navigation }) {
       const nb = currentBoard.map(r => [...r])
       nb[row][col] = num
       updateBoard(nb)
+      setMoveCount(prev => prev + 1)
       numberPlaceFeedback()
     }
   }
