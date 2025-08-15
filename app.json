@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GridGenius Sudoku",
+    "name": "GridGenius",
     "slug": "sudokuapp",
     "version": "1.2.0",
     "sdkVersion": "53.0.0",
@@ -20,7 +20,7 @@
       ]
     ],
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash_v1.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -34,7 +34,7 @@
       "buildNumber": "2",
       "supportsTablet": true,
       "splash": {
-        "image": "./assets/splash.png",
+        "image": "./assets/splash_v1.png",
         "resizeMode": "contain",
         "backgroundColor": "#ffffff"
       },
@@ -50,11 +50,11 @@
       "package": "io.sekki.sudoku",
       "versionCode": 2,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/splash.png",
+        "foregroundImage": "./assets/splash_v1.png",
         "backgroundColor": "#ffffff"
       },
       "splash": {
-        "image": "./assets/splash.png",
+        "image": "./assets/splash_v1.png",
         "resizeMode": "contain",
         "backgroundColor": "#ffffff"
       },
