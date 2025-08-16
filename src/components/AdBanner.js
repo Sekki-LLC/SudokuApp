@@ -8,9 +8,8 @@ import {
   TestIds
 } from 'react-native-google-mobile-ads'
 
-const AD_UNIT_ID = __DEV__
-  ? TestIds.BANNER
-  : 'ca-app-pub-7765897544369826/XXXXXXXXXX'  // ← your real unit ID (without the “~”)
+// FIXED: Use TestIds for both development and production since we're using test AdMob IDs
+const AD_UNIT_ID = TestIds.BANNER
 
 export default function AdBanner() {
   return (
@@ -30,7 +29,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     marginVertical: 10,
-    // optionally force a fixed height so layout doesn’t shift:
+    // optionally force a fixed height so layout doesn't shift:
     height: BannerAdSize.FULL_BANNER.height
   }
 })

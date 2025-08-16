@@ -6,10 +6,8 @@ import {
   TestIds,
 } from 'react-native-google-mobile-ads'
 
-// During development, use the test ID. In production, swap in your real interstitial unit:
-const AD_UNIT_ID = __DEV__
-  ? TestIds.INTERSTITIAL
-  : 'ca-app-pub-7765897544369826/1234567890'  // ← your real interstitial unit ID
+// FIXED: Use TestIds for both development and production since we're using test AdMob IDs
+const AD_UNIT_ID = TestIds.INTERSTITIAL
 
 // 1) create the ad instance
 const interstitial = InterstitialAd.createForAdRequest(AD_UNIT_ID, {
@@ -34,10 +32,33 @@ interstitial.addAdEventListener(AdEventType.CLOSED, () => {
 interstitial.load()
 
 /**
- * Call this to show an interstitial if it's loaded.
+ * FIXED: Return a Promise that resolves when the ad is completed or dismissed
  */
 export function showInterstitial() {
-  if (isLoaded) {
+  return new Promise((resolve, reject) => {
+    if (!isLoaded) {
+      reject(new Error('Ad not loaded'))
+      return
+    }
+
+    // Set up one-time listeners for this ad show
+    const onClosed = () => {
+      interstitial.removeAdEventListener(AdEventType.CLOSED, onClosed)
+      interstitial.removeAdEventListener(AdEventType.ERROR, onError)
+      resolve() // Ad was watched and closed
+    }
+
+    const onError = (error) => {
+      interstitial.removeAdEventListener(AdEventType.CLOSED, onClosed)
+      interstitial.removeAdEventListener(AdEventType.ERROR, onError)
+      reject(error) // Ad failed to show
+    }
+
+    // Add temporary listeners
+    interstitial.addAdEventListener(AdEventType.CLOSED, onClosed)
+    interstitial.addAdEventListener(AdEventType.ERROR, onError)
+
+    // Show the ad
     interstitial.show()
-  }
+  })
 }
